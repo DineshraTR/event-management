@@ -18,55 +18,330 @@ class ReportController extends Controller
 {
     public function orderPL(Request $request)
     {
-        $dateFrom = $request->get('date_from', Carbon::now()->startOfMonth()->format('Y-m-d'));
-        $dateTo = $request->get('date_to', Carbon::today()->format('Y-m-d'));
+        $orderId = $request->get('order_id');
+        $customerId = $request->get('customer_id');
+        $orderNo = $request->get('order_no');
+        $eventName = $request->get('event_name') ?: $request->get('search');
+        $dateFrom = $request->get('date_from');
+        $dateTo = $request->get('date_to');
 
-        $orders = Order::with(['event.additionalServices', 'event.subCategory', 'event.expenses', 'services', 'payments', 'customer'])
-            ->whereBetween('order_date', [$dateFrom, $dateTo])
+        // All Customers for customer dropdown filter
+        $allCustomers = Customer::orderBy('name')->get(['id', 'name', 'phone']);
+
+        // Quick list of all orders for the selectable order dropdown
+        $allOrdersQuickList = Order::with(['customer', 'event'])
+            ->latest('order_date')
             ->get()
-            ->map(function ($order) {
-                $revenue = $order->total_amount;
-                $eventExpenses = $order->event ? $order->event->expenses()->sum('amount') : 0;
-                $packageCost = $order->event ? $order->event->package_cost_price : 0;
-                $additionalCost = $order->event ? $order->event->additionalServices->sum('total_price') : 0;
-                $totalCost = $packageCost + $additionalCost + $eventExpenses;
+            ->map(function ($o) {
                 return [
-                    'order' => $order,
-                    'revenue' => $revenue,
-                    'cost' => $totalCost,
-                    'profit' => $revenue - $totalCost,
-                    'margin' => $revenue > 0 ? round((($revenue - $totalCost) / $revenue) * 100, 1) : 0,
+                    'id' => $o->id,
+                    'order_no' => $o->order_no,
+                    'customer_id' => $o->customer_id,
+                    'customer_name' => $o->customer?->name ?? 'Walk-in Customer',
+                    'event_name' => $o->event?->event_name ?? 'Direct Order',
                 ];
             });
 
+        // If a specific order is selected to view its formal statement
+        $singleOrder = null;
+        $singleOrderData = null;
+        if ($orderId) {
+            $singleOrder = Order::with([
+                'customer',
+                'event.subCategory.category',
+                'event.additionalServices',
+                'event.otherCharges',
+                'event.expenses',
+                'services.service',
+                'otherCharges',
+                'payments',
+                'expenses',
+            ])->find($orderId);
+
+            if ($singleOrder) {
+                $rev = (float) $singleOrder->total_amount;
+                $paid = (float) $singleOrder->paid_amount;
+                $due = max(0, $rev - $paid);
+
+                // Package direct cost from event if available
+                $pkgCost = $singleOrder->event ? (float) $singleOrder->event->package_cost_price : 0;
+
+                // Direct expense records linked to this order or its event
+                $directExpenses = Expense::where(function ($q) use ($singleOrder) {
+                    $q->where('order_id', $singleOrder->id);
+                    if ($singleOrder->event_id) {
+                        $q->orWhere('event_id', $singleOrder->event_id);
+                    }
+                })->orderBy('expense_date')->get();
+
+                $totalDirectVouchers = (float) $directExpenses->sum('amount');
+                $totalDirectCost = $pkgCost + $totalDirectVouchers;
+                $netProfitOrLoss = $rev - $totalDirectCost;
+                $isProfit = $netProfitOrLoss >= 0;
+                $profitMarginPct = $rev > 0 ? round(($netProfitOrLoss / $rev) * 100, 1) : 0;
+                $cashProfitOrLoss = $paid - $totalDirectCost;
+
+                $singleOrderData = [
+                    'order' => $singleOrder,
+                    'revenue' => $rev,
+                    'paid' => $paid,
+                    'due' => $due,
+                    'package_cost' => $pkgCost,
+                    'direct_expenses' => $directExpenses,
+                    'total_direct_vouchers' => $totalDirectVouchers,
+                    'total_direct_cost' => $totalDirectCost,
+                    'net_profit_loss' => $netProfitOrLoss,
+                    'is_profit' => $isProfit,
+                    'profit_margin' => $profitMarginPct,
+                    'cash_profit_loss' => $cashProfitOrLoss,
+                ];
+            }
+        }
+
+        // Default date range for overview table if not searching specific order and no range specified
+        if (!$singleOrder && !$dateFrom && !$dateTo && !$orderNo && !$eventName && !$customerId) {
+            $dateFrom = Carbon::now()->startOfMonth()->format('Y-m-d');
+            $dateTo = Carbon::today()->format('Y-m-d');
+        }
+
+        // Build query for overview list
+        $query = Order::with(['event.additionalServices', 'event.subCategory', 'event.expenses', 'services', 'payments', 'customer', 'expenses']);
+
+        if ($dateFrom) {
+            $query->whereDate('order_date', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $query->whereDate('order_date', '<=', $dateTo);
+        }
+        if ($customerId) {
+            $query->where('customer_id', $customerId);
+        }
+        if ($orderNo) {
+            $query->where('order_no', 'like', "%{$orderNo}%");
+        }
+        if ($eventName) {
+            $query->where(function ($q) use ($eventName) {
+                $q->whereHas('event', fn($e) => $e->where('event_name', 'like', "%{$eventName}%"))
+                  ->orWhereHas('customer', fn($c) => $c->where('name', 'like', "%{$eventName}%"));
+            });
+        }
+
+        $ordersCollection = $query->latest('order_date')->latest('id')->get();
+
+        $orders = $ordersCollection->map(function ($order) {
+            $revenue = (float) $order->total_amount;
+            $packageCost = $order->event ? (float) $order->event->package_cost_price : 0;
+
+            // Direct expenses
+            $allDirectExpenses = (float) Expense::where(function ($q) use ($order) {
+                $q->where('order_id', $order->id);
+                if ($order->event_id) {
+                    $q->orWhere('event_id', $order->event_id);
+                }
+            })->sum('amount');
+
+            if ($allDirectExpenses <= 0 && $order->event) {
+                $allDirectExpenses = (float) $order->event->expenses()->sum('amount');
+            }
+
+            $totalCost = $packageCost + $allDirectExpenses;
+            $profit = $revenue - $totalCost;
+            $margin = $revenue > 0 ? round(($profit / $revenue) * 100, 1) : 0;
+            $paid = (float) $order->paid_amount;
+            $due = max(0, $revenue - $paid);
+
+            return [
+                'order' => $order,
+                'sub_total' => (float) $order->sub_total,
+                'discount' => (float) $order->discount,
+                'revenue' => $revenue,
+                'paid' => $paid,
+                'due' => $due,
+                'cost' => $totalCost,
+                'profit' => $profit,
+                'margin' => $margin,
+                'is_profit' => $profit >= 0,
+            ];
+        });
+
+        $totalSubTotal = $orders->sum('sub_total');
+        $totalDiscount = $orders->sum('discount');
         $totalRevenue = $orders->sum('revenue');
+        $totalPaid = $orders->sum('paid');
+        $totalDue = $orders->sum('due');
         $totalCost = $orders->sum('cost');
         $totalProfit = $orders->sum('profit');
 
-        return view('reports.order-pl', compact('orders', 'totalRevenue', 'totalCost', 'totalProfit', 'dateFrom', 'dateTo'));
+        return view('reports.order-pl', compact(
+            'orders',
+            'totalSubTotal',
+            'totalDiscount',
+            'totalRevenue',
+            'totalPaid',
+            'totalDue',
+            'totalCost',
+            'totalProfit',
+            'dateFrom',
+            'dateTo',
+            'customerId',
+            'orderNo',
+            'eventName',
+            'allCustomers',
+            'allOrdersQuickList',
+            'singleOrder',
+            'singleOrderData'
+        ));
     }
 
     public function monthlyPL(Request $request)
     {
-        $year = $request->get('year', Carbon::now()->year);
-        $months = [];
+        $startDate = $request->get('start_date');
+        $endDate = $request->get('end_date');
+        $year = (int) $request->get('year', Carbon::now()->year);
 
+        // If specific start and end dates not given, default to current month
+        if (!$startDate && !$endDate) {
+            $startDate = Carbon::now()->startOfMonth()->format('Y-m-d');
+            $endDate = Carbon::today()->format('Y-m-d');
+        } elseif ($startDate && !$endDate) {
+            $endDate = Carbon::today()->format('Y-m-d');
+        } elseif (!$startDate && $endDate) {
+            $startDate = Carbon::parse($endDate)->startOfMonth()->format('Y-m-d');
+        }
+
+        $periodLabel = Carbon::parse($startDate)->format('d M Y') . ' to ' . Carbon::parse($endDate)->format('d M Y');
+
+        // 1. Orders registered in this period
+        $orders = Order::with(['customer', 'event.subCategory'])
+            ->whereBetween('order_date', [$startDate, $endDate])
+            ->orderBy('order_date')
+            ->get();
+        $totalOrdersCount = $orders->count();
+        $totalOrderValuation = (float) $orders->sum('total_amount');
+
+        // 2. Payments collected in this period
+        $payments = Payment::with(['customer', 'order.event'])
+            ->whereBetween('payment_date', [$startDate, $endDate])
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'Returned');
+            })
+            ->orderBy('payment_date')
+            ->get();
+        $totalPaymentsReceived = (float) $payments->sum('amount');
+        $totalPaymentsCount = $payments->count();
+
+        // Total Period Revenue
+        $totalRevenue = $totalOrderValuation > 0 ? $totalOrderValuation : $totalPaymentsReceived;
+
+        // 3. Direct Costs (Cost of Sales):
+        // Package base costs from events registered in period
+        $packageCostsTotal = (float) $orders->sum(fn($o) => $o->event?->package_cost_price ?? 0);
+
+        // Direct expense vouchers recorded in this period
+        $directExpenses = Expense::where(function ($q) {
+                $q->where('type', 'direct')->orWhereNotNull('order_id')->orWhereNotNull('event_id');
+            })
+            ->whereBetween('expense_date', [$startDate, $endDate])
+            ->orderBy('expense_date')
+            ->get();
+        $totalDirectVouchers = (float) $directExpenses->sum('amount');
+        $totalDirectCost = $packageCostsTotal + $totalDirectVouchers;
+
+        // Gross Profit (Total Revenue - Total Direct Cost)
+        $grossProfit = $totalRevenue - $totalDirectCost;
+        $isGrossProfit = ($grossProfit >= 0);
+        $grossProfitMargin = ($totalRevenue > 0) ? round(($grossProfit / $totalRevenue) * 100, 1) : 0.0;
+
+        // 4. Operating / Normal Expenses (Overheads):
+        $operatingExpenses = Expense::where('type', 'normal')
+            ->whereNull('order_id')
+            ->whereNull('event_id')
+            ->whereBetween('expense_date', [$startDate, $endDate])
+            ->orderBy('expense_date')
+            ->get();
+        $totalOperatingCost = (float) $operatingExpenses->sum('amount');
+
+        // Net Profit or Loss (Gross Profit - Operating Expenses)
+        $netProfitOrLoss = $grossProfit - $totalOperatingCost;
+        $isNetProfit = ($netProfitOrLoss >= 0);
+        $netProfitMargin = ($totalRevenue > 0) ? round(($netProfitOrLoss / $totalRevenue) * 100, 1) : 0.0;
+
+        // 5. 12-Month Comparative Overview for the Selected Year
+        $months = [];
         for ($m = 1; $m <= 12; $m++) {
-            $revenue = Payment::whereMonth('payment_date', $m)->whereYear('payment_date', $year)->sum('amount');
-            $expenses = Expense::whereMonth('expense_date', $m)->whereYear('expense_date', $year)->sum('amount');
+            $mStart = Carbon::createFromDate($year, $m, 1)->startOfMonth()->format('Y-m-d');
+            $mEnd = Carbon::createFromDate($year, $m, 1)->endOfMonth()->format('Y-m-d');
+
+            $mOrderRev = (float) Order::whereBetween('order_date', [$mStart, $mEnd])->sum('total_amount');
+            $mPayRev = (float) Payment::whereBetween('payment_date', [$mStart, $mEnd])->sum('amount');
+            $mRev = $mOrderRev > 0 ? $mOrderRev : $mPayRev;
+
+            $mPkgCost = (float) Order::whereBetween('order_date', [$mStart, $mEnd])
+                ->with('event')
+                ->get()
+                ->sum(fn($o) => $o->event?->package_cost_price ?? 0);
+
+            $mDirExp = (float) Expense::where(function ($q) {
+                    $q->where('type', 'direct')->orWhereNotNull('order_id')->orWhereNotNull('event_id');
+                })
+                ->whereBetween('expense_date', [$mStart, $mEnd])
+                ->sum('amount');
+            $mDirectTotal = $mPkgCost + $mDirExp;
+
+            $mNormExp = (float) Expense::where('type', 'normal')
+                ->whereNull('order_id')
+                ->whereNull('event_id')
+                ->whereBetween('expense_date', [$mStart, $mEnd])
+                ->sum('amount');
+
+            $mTotalExp = $mDirectTotal + $mNormExp;
+            $mProfit = $mRev - $mTotalExp;
+
             $months[] = [
                 'month' => Carbon::createFromDate($year, $m, 1)->format('F'),
-                'revenue' => round($revenue, 2),
-                'expenses' => round($expenses, 2),
-                'profit' => round($revenue - $expenses, 2),
+                'month_num' => $m,
+                'revenue' => round($mRev, 2),
+                'direct_cost' => round($mDirectTotal, 2),
+                'operating_cost' => round($mNormExp, 2),
+                'expenses' => round($mTotalExp, 2),
+                'profit' => round($mProfit, 2),
+                'margin' => $mRev > 0 ? round(($mProfit / $mRev) * 100, 1) : 0,
             ];
         }
 
-        $totalRevenue = array_sum(array_column($months, 'revenue'));
-        $totalExpenses = array_sum(array_column($months, 'expenses'));
-        $totalProfit = $totalRevenue - $totalExpenses;
+        $yearTotalRevenue = array_sum(array_column($months, 'revenue'));
+        $yearTotalExpenses = array_sum(array_column($months, 'expenses'));
+        $yearTotalProfit = $yearTotalRevenue - $yearTotalExpenses;
 
-        return view('reports.monthly-pl', compact('months', 'year', 'totalRevenue', 'totalExpenses', 'totalProfit'));
+        return view('reports.monthly-pl', compact(
+            'startDate',
+            'endDate',
+            'periodLabel',
+            'year',
+            'orders',
+            'totalOrdersCount',
+            'totalOrderValuation',
+            'payments',
+            'totalPaymentsReceived',
+            'totalPaymentsCount',
+            'totalRevenue',
+            'packageCostsTotal',
+            'directExpenses',
+            'totalDirectVouchers',
+            'totalDirectCost',
+            'grossProfit',
+            'isGrossProfit',
+            'grossProfitMargin',
+            'operatingExpenses',
+            'totalOperatingCost',
+            'netProfitOrLoss',
+            'isNetProfit',
+            'netProfitMargin',
+            'months',
+            'yearTotalRevenue',
+            'yearTotalExpenses',
+            'yearTotalProfit'
+        ));
     }
 
     public function customerCredit(Request $request)
