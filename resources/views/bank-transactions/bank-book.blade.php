@@ -513,6 +513,23 @@
                                                 <i class="bi bi-chat-left-text me-1"></i>{{ $transaction->notes }}
                                             </small>
                                         @endif
+                                        @if($transaction->order_id || $transaction->customer_id || $transaction->cheque_id)
+                                            @if($transaction->order)
+                                                <a href="{{ route('orders.show', $transaction->order) }}" class="badge bg-primary-subtle text-primary border border-primary-subtle text-decoration-none" style="font-size: 10px;">
+                                                    <i class="bi bi-receipt me-1"></i>Order: {{ $transaction->order->order_no }}
+                                                </a>
+                                            @endif
+                                            @if($transaction->customer)
+                                                <span class="badge bg-light text-secondary border" style="font-size: 10px;">
+                                                    <i class="bi bi-person me-1"></i>{{ $transaction->customer->name }}
+                                                </span>
+                                            @endif
+                                            @if($transaction->cheque)
+                                                <span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size: 10px;">
+                                                    <i class="bi bi-card-checklist me-1"></i>Cheque: {{ $transaction->cheque->cheque_number }}
+                                                </span>
+                                            @endif
+                                        @endif
                                     </div>
                                 </div>
                             </div>

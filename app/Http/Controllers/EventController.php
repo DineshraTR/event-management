@@ -126,7 +126,8 @@ class EventController extends Controller
         $validated['discount'] = $validated['discount'] ?? 0;
         $validated['advance_payment'] = $validated['advance_payment'] ?? 0;
 
-        DB::transaction(function () use ($request, $validated, &$event) {
+        $createdOrder = null;
+        DB::transaction(function () use ($request, $validated, &$event, &$createdOrder) {
             $event = Event::create($validated);
 
             // Add additional services
@@ -162,9 +163,14 @@ class EventController extends Controller
 
             // Auto-create order if advance payment > 0
             if ($validated['advance_payment'] > 0) {
-                $this->autoCreateOrder($event, $validated['advance_payment']);
+                $createdOrder = $this->autoCreateOrder($event, $validated['advance_payment']);
             }
         });
+
+        if ($createdOrder) {
+            return redirect()->route('orders.print', ['order' => $createdOrder->id, 'auto_print' => 1])
+                ->with('success', 'Event registered, Order created with advance payment, and Invoice is ready to print!');
+        }
 
         return redirect()->route('events.show', $event)->with('success', 'Event registered successfully!');
     }
@@ -268,11 +274,21 @@ class EventController extends Controller
 
     private function autoCreateOrder(Event $event, float $advanceAmount): Order
     {
+        $event->load(['customer', 'subCategory.category', 'subCategory.subCategoryServices.service', 'additionalServices', 'otherCharges']);
+
+        $packageName = $event->subCategory?->name ?? 'Base Event Package';
+
         $order = Order::create([
             'event_id' => $event->id,
             'customer_id' => $event->customer_id,
+            'event_sub_category_id' => $event->event_sub_category_id,
+            'package_name' => $packageName,
+            'package_cost_price' => $event->package_cost_price ?? 0,
+            'package_sell_price' => $event->package_sell_price ?? 0,
+            'additional_services_total' => $event->additional_services_total ?? 0,
+            'other_charges_total' => $event->other_charges_total ?? 0,
             'order_date' => $event->today_date,
-            'sub_total' => $event->total_amount,
+            'sub_total' => $event->sub_total,
             'discount' => $event->discount ?? 0,
             'total_amount' => $event->total_amount,
             'paid_amount' => $advanceAmount,
@@ -282,8 +298,20 @@ class EventController extends Controller
             'is_auto_created' => true,
         ]);
 
-        // Copy event additional services to order
-        $event->load('additionalServices', 'otherCharges');
+        // 1. Add base package item as top line item
+        if ($event->package_sell_price > 0 || $event->subCategory) {
+            \App\Models\OrderService::create([
+                'order_id' => $order->id,
+                'service_id' => null,
+                'is_package_item' => true,
+                'description' => $packageName . ' (Base Package)',
+                'qty' => 1,
+                'unit_price' => $event->package_sell_price,
+                'total_price' => $event->package_sell_price,
+            ]);
+        }
+
+        // 2. Copy event additional services to order
         foreach ($event->additionalServices as $svc) {
             \App\Models\OrderService::create([
                 'order_id' => $order->id,
@@ -295,7 +323,7 @@ class EventController extends Controller
             ]);
         }
 
-        // Copy event other charges to order
+        // 3. Copy event other charges to order
         foreach ($event->otherCharges as $charge) {
             \App\Models\OrderOtherCharge::create([
                 'order_id' => $order->id,
@@ -304,7 +332,7 @@ class EventController extends Controller
             ]);
         }
 
-        // Record payment
+        // 4. Record advance payment
         $payment = \App\Models\Payment::create([
             'order_id' => $order->id,
             'customer_id' => $event->customer_id,
@@ -315,15 +343,17 @@ class EventController extends Controller
             'notes' => 'Advance payment during event registration.',
         ]);
 
-        // Log to BankTransaction / Cash Book
-        \App\Models\BankTransaction::create([
+        // 5. Log to CashTransaction / Cash Book
+        \App\Models\CashTransaction::create([
             'type' => 'income',
-            'transaction_method' => 'cash',
-            'account_type' => 'cash',
             'amount' => $advanceAmount,
             'description' => 'Advance payment - Event ' . $event->event_no . ' (Order ' . $order->order_no . ')',
             'transaction_date' => $event->today_date,
             'reference_no' => $payment->payment_no,
+            'customer_id' => $event->customer_id,
+            'order_id' => $order->id,
+            'payment_id' => $payment->id,
+            'notes' => "Event: {$event->event_no} - Package: {$packageName}",
         ]);
 
         return $order;

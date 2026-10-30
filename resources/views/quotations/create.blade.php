@@ -172,6 +172,23 @@
         border-color: #64748b !important;
         color: #0f172a !important;
     }
+
+    .package-service-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-radius: 20px;
+        padding: 4px 12px;
+        font-size: 12px;
+        color: #334155;
+        font-weight: 500;
+    }
+    .package-service-pill i {
+        color: #0d6efd;
+        font-size: 13px;
+    }
 </style>
 
 <div class="container-fluid px-0">
@@ -292,16 +309,16 @@
                     </div>
                 </div>
 
-                <!-- Section 2: Package Preset (Optional) -->
+                <!-- Section 2: Package Selection & Pricing (From Event Register Style) -->
                 <div class="custom-section-box">
                     <div class="form-section-title">
                         <i class="bi bi-box-seam-fill"></i>
-                        <span>Package Preset (Optional)</span>
+                        <span>Package Selection & Pricing</span>
                     </div>
 
                     <div class="row g-3">
                         <!-- Category -->
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="custom-input-label">
                                 <i class="bi bi-folder2-open"></i>
                                 Select Category
@@ -315,42 +332,52 @@
                         </div>
 
                         <!-- Sub-Category / Package -->
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="custom-input-label">
                                 <i class="bi bi-boxes"></i>
-                                Select Package Preset
+                                Select Sub-Category / Package
                             </label>
                             <select name="event_sub_category_id" id="subCategoryId" class="form-select" onchange="onSubCategoryChange(this.value)">
                                 <option value="">-- Select Category First --</option>
                             </select>
-                            <small class="text-muted d-block mt-1" style="font-size: 11.5px;">Selecting a package will allow you to auto-populate included services below.</small>
+                            <small class="text-muted d-block mt-1" style="font-size: 11.5px;">Auto-loads included deliverables and package base price.</small>
+                        </div>
+
+                        <!-- Package Base Sell Price (Editable) -->
+                        <div class="col-md-4">
+                            <label class="custom-input-label">
+                                <i class="bi bi-cash-stack"></i>
+                                Package Base Sell Price (Rs.)
+                            </label>
+                            <div class="input-group">
+                                <input type="number" step="0.01" min="0" name="package_sell_price" id="packageSellPrice" class="form-control fw-bold text-primary" value="{{ old('package_sell_price', '0.00') }}" oninput="calculateQuotationTotals()">
+                            </div>
+                            <small class="text-muted d-block mt-1" style="font-size: 11.5px;">Base price for this package; included directly in quotation total.</small>
                         </div>
                     </div>
 
-                    <!-- Package Services Import Notification Banner -->
-                    <div id="pkgImportBanner" class="mt-3 p-3 bg-white rounded-3 border d-none shadow-sm">
-                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <div>
-                                <span class="fw-bold text-dark small">
-                                    <i class="bi bi-stars text-primary me-1"></i> Package Selected: <span id="pkgBannerName"></span>
-                                </span>
-                                <div class="text-muted small">
-                                    Standard Sell Price: <strong class="text-dark" id="pkgBannerPrice">Rs. 0.00</strong> &bull; <span id="pkgBannerCount">0</span> services included.
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-primary fw-semibold" onclick="importPackageServicesToQuotation()">
-                                <i class="bi bi-box-arrow-in-down me-1"></i> Import Package Items to Quotation
-                            </button>
+                    <!-- Package Included Services Preview Box -->
+                    <div id="packageServicesBox" class="mt-3 p-3 bg-white rounded-3 border d-none shadow-sm">
+                        <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
+                            <span class="fw-bold text-dark small">
+                                <i class="bi bi-check-circle-fill text-success me-1"></i> Included in Selected Package:
+                            </span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="pkgSvcCountBadge">
+                                0 Services
+                            </span>
+                        </div>
+                        <div id="packageServicesList" class="d-flex flex-wrap gap-2 pt-1">
+                            <!-- Dynamic Pills -->
                         </div>
                     </div>
                 </div>
 
-                <!-- Section 3: Quotation Services & Items -->
+                <!-- Section 3: Additional Services & Deliverables -->
                 <div class="custom-section-box">
                     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                         <div class="form-section-title mb-0">
                             <i class="bi bi-stars"></i>
-                            <span>Services & Quotation Items</span>
+                            <span>Additional Services & Deliverables</span>
                         </div>
                         <button type="button" class="btn btn-sm btn-light-gray fw-semibold px-3" onclick="addQuotationServiceRow()">
                             <i class="bi bi-plus-lg me-1"></i> Add Service
@@ -455,11 +482,15 @@
                         <div class="col-lg-6">
                             <div class="financial-summary-card">
                                 <div class="financial-line-item">
-                                    <span class="text-muted">Services Subtotal:</span>
+                                    <span class="text-muted">Package Base Price:</span>
+                                    <span class="fw-semibold text-primary" id="calcPackageSum">Rs. 0.00</span>
+                                </div>
+                                <div class="financial-line-item">
+                                    <span class="text-muted">Additional Services:</span>
                                     <span class="fw-semibold text-dark" id="sumServicesDisplay">Rs. 0.00</span>
                                 </div>
                                 <div class="financial-line-item">
-                                    <span class="text-muted">Other Charges Subtotal:</span>
+                                    <span class="text-muted">Other Charges:</span>
                                     <span class="fw-semibold text-dark" id="sumChargesDisplay">Rs. 0.00</span>
                                 </div>
                                 <div class="financial-line-item pt-2 border-top">
@@ -621,11 +652,10 @@
     function onCategoryChange(categoryId) {
         const subSelect = document.getElementById('subCategoryId');
         subSelect.innerHTML = '<option value="">-- Loading Packages... --</option>';
-        document.getElementById('pkgImportBanner').classList.add('d-none');
-        selectedPackageData = null;
 
         if (!categoryId) {
             subSelect.innerHTML = '<option value="">-- Select Category First --</option>';
+            resetPackageDetails();
             return;
         }
 
@@ -636,47 +666,73 @@
                 data.forEach(sub => {
                     const opt = document.createElement('option');
                     opt.value = sub.id;
+                    opt.setAttribute('data-sell-price', sub.sell_price);
                     opt.text = `${sub.name} (Sell: Rs. ${parseFloat(sub.sell_price).toLocaleString()})`;
                     subSelect.appendChild(opt);
                 });
+                resetPackageDetails();
             })
             .catch(() => {
                 subSelect.innerHTML = '<option value="">Error loading packages</option>';
             });
     }
 
-    // Sub-Category Change -> Load Package Details
+    // Sub-Category Change -> Load Package Details & Included Deliverables
     function onSubCategoryChange(subCategoryId) {
         if (!subCategoryId) {
-            document.getElementById('pkgImportBanner').classList.add('d-none');
-            selectedPackageData = null;
+            resetPackageDetails();
             return;
         }
 
+        const subSelect = document.getElementById('subCategoryId');
+        const selectedOpt = subSelect ? subSelect.options[subSelect.selectedIndex] : null;
+        if (selectedOpt && selectedOpt.getAttribute('data-sell-price')) {
+            const immediatePrice = parseFloat(selectedOpt.getAttribute('data-sell-price')) || 0;
+            document.getElementById('packageSellPrice').value = immediatePrice.toFixed(2);
+            calculateQuotationTotals();
+        }
+
         fetch(`/api/sub-category/${subCategoryId}`)
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) throw new Error('Network error');
+                return res.json();
+            })
             .then(data => {
-                selectedPackageData = data;
-                document.getElementById('pkgBannerName').innerText = data.name;
-                document.getElementById('pkgBannerPrice').innerText = 'Rs. ' + parseFloat(data.sell_price).toLocaleString();
-                document.getElementById('pkgBannerCount').innerText = data.services ? data.services.length : 0;
-                document.getElementById('pkgImportBanner').classList.remove('d-none');
+                if (data.sell_price !== undefined && data.sell_price !== null) {
+                    document.getElementById('packageSellPrice').value = parseFloat(data.sell_price).toFixed(2);
+                }
+
+                const pkgBox = document.getElementById('packageServicesBox');
+                const pkgList = document.getElementById('packageServicesList');
+                const badge = document.getElementById('pkgSvcCountBadge');
+
+                pkgList.innerHTML = '';
+                if (data.services && data.services.length > 0) {
+                    pkgBox.classList.remove('d-none');
+                    badge.innerText = `${data.services.length} Services`;
+
+                    data.services.forEach(svc => {
+                        const pill = document.createElement('div');
+                        pill.className = 'package-service-pill';
+                        pill.innerHTML = `<i class="bi bi-check2-circle"></i> <span>${svc.service_name} &bull; Qty: <strong>${svc.qty}</strong></span>`;
+                        pkgList.appendChild(pill);
+                    });
+                } else {
+                    pkgBox.classList.add('d-none');
+                }
+
+                calculateQuotationTotals();
+            })
+            .catch(err => {
+                console.error('Error fetching package details:', err);
+                calculateQuotationTotals();
             });
     }
 
-    // Import package services to quotation table
-    function importPackageServicesToQuotation() {
-        if (!selectedPackageData) return;
-
-        // Add base package item or its services
-        if (selectedPackageData.services && selectedPackageData.services.length > 0) {
-            selectedPackageData.services.forEach(svc => {
-                addQuotationServiceRowCustom(svc.service_name, svc.qty || 1, svc.unit_price, svc.service_id);
-            });
-        } else {
-            addQuotationServiceRowCustom(`${selectedPackageData.name} Package`, 1, parseFloat(selectedPackageData.sell_price));
-        }
-
+    function resetPackageDetails() {
+        document.getElementById('packageSellPrice').value = '0.00';
+        document.getElementById('packageServicesBox').classList.add('d-none');
+        document.getElementById('packageServicesList').innerHTML = '';
         calculateQuotationTotals();
     }
 
@@ -810,6 +866,8 @@
 
     // Calculate Quotation Totals
     function calculateQuotationTotals() {
+        const pkgBasePrice = parseFloat(document.getElementById('packageSellPrice')?.value) || 0;
+
         let servicesTotal = 0;
         document.querySelectorAll('#quotationServicesTbody tr').forEach(row => {
             const qty = parseInt(row.querySelector('[id^="qsvc_qty_"]')?.value) || 0;
@@ -823,12 +881,15 @@
         });
 
         const discount = parseFloat(document.getElementById('quotationDiscountInput')?.value) || 0;
-        const subtotal = servicesTotal + chargesTotal;
+        const subtotal = pkgBasePrice + servicesTotal + chargesTotal;
         const finalTotal = Math.max(0, subtotal - discount);
 
         document.getElementById('servicesTotalDisplay').innerText = servicesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('chargesTotalDisplay').innerText = chargesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+        if (document.getElementById('calcPackageSum')) {
+            document.getElementById('calcPackageSum').innerText = 'Rs. ' + pkgBasePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
         document.getElementById('sumServicesDisplay').innerText = 'Rs. ' + servicesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('sumChargesDisplay').innerText = 'Rs. ' + chargesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('finalQuotationTotalDisplay').innerText = 'Rs. ' + finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

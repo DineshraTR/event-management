@@ -9,13 +9,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Order extends Model
 {
     protected $fillable = [
-        'order_no', 'event_id', 'customer_id', 'order_date',
-        'sub_total', 'discount', 'total_amount', 'paid_amount', 'balance',
+        'order_no', 'event_id', 'customer_id', 'event_sub_category_id', 'package_name',
+        'package_cost_price', 'package_sell_price', 'additional_services_total', 'other_charges_total',
+        'order_date', 'sub_total', 'discount', 'total_amount', 'paid_amount', 'balance',
         'payment_status', 'notes', 'is_auto_created'
     ];
 
     protected $casts = [
         'order_date' => 'date',
+        'package_cost_price' => 'decimal:2',
+        'package_sell_price' => 'decimal:2',
+        'additional_services_total' => 'decimal:2',
+        'other_charges_total' => 'decimal:2',
         'sub_total' => 'decimal:2',
         'discount' => 'decimal:2',
         'total_amount' => 'decimal:2',
@@ -39,6 +44,11 @@ class Order extends Model
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);
+    }
+
+    public function subCategory(): BelongsTo
+    {
+        return $this->belongsTo(EventSubCategory::class, 'event_sub_category_id');
     }
 
     public function customer(): BelongsTo
@@ -73,8 +83,12 @@ class Order extends Model
 
     public function recalculateTotals(): void
     {
-        $servicesTotal = (float) $this->services()->sum('total_price');
+        $packageItem = $this->services()->where('is_package_item', true)->first();
+        $packageSellPrice = $packageItem ? (float) $packageItem->total_price : (float) ($this->package_sell_price ?? 0);
+        $additionalServicesTotal = (float) $this->services()->where('is_package_item', false)->sum('total_price');
         $chargesTotal = (float) $this->otherCharges()->sum('amount');
+        
+        $servicesTotal = (float) $this->services()->sum('total_price');
         $subTotal = $servicesTotal + $chargesTotal;
         if ($subTotal <= 0 && (float) $this->sub_total > 0) {
             $subTotal = (float) $this->sub_total;
@@ -100,6 +114,9 @@ class Order extends Model
         }
 
         $this->update([
+            'package_sell_price' => $packageSellPrice,
+            'additional_services_total' => $additionalServicesTotal,
+            'other_charges_total' => $chargesTotal,
             'sub_total' => $subTotal,
             'total_amount' => $totalAmount,
             'paid_amount' => $paidAmount,

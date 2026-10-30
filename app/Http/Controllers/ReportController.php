@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Event;
 use App\Models\Bank;
 use App\Models\BankTransaction;
+use App\Models\CashTransaction;
 use App\Models\Cheque;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -349,7 +350,12 @@ class ReportController extends Controller
         $search = $request->get('search');
 
         $customers = Customer::with(['orders', 'payments'])
-            ->when($search, fn($q) => $q->where('name', 'like', "%$search%"))
+            ->when($search, function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('company_name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            })
             ->get()
             ->map(function ($customer) {
                 $totalBilled = $customer->orders->sum('total_amount');
@@ -380,23 +386,32 @@ class ReportController extends Controller
 
     public function orderHistory(Request $request)
     {
+        $search = $request->get('search');
         $dateFrom = $request->get('date_from');
         $dateTo = $request->get('date_to');
         $status = $request->get('status');
         $customerId = $request->get('customer_id');
 
         $orders = Order::with(['customer', 'event.subCategory.category', 'payments'])
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('order_no', 'like', "%{$search}%")
+                        ->orWhereHas('customer', fn($c) => $c->where('name', 'like', "%{$search}%")->orWhere('phone', 'like', "%{$search}%"))
+                        ->orWhereHas('event', fn($e) => $e->where('event_name', 'like', "%{$search}%")->orWhere('event_no', 'like', "%{$search}%"));
+                });
+            })
             ->when($dateFrom, fn($q) => $q->where('order_date', '>=', $dateFrom))
             ->when($dateTo, fn($q) => $q->where('order_date', '<=', $dateTo))
             ->when($status, fn($q) => $q->where('payment_status', $status))
             ->when($customerId, fn($q) => $q->where('customer_id', $customerId))
-            ->latest()
+            ->latest('order_date')
+            ->latest('id')
             ->paginate(25)
             ->withQueryString();
 
         $customers = Customer::orderBy('name')->get(['id', 'name']);
 
-        return view('reports.order-history', compact('orders', 'customers', 'dateFrom', 'dateTo', 'status', 'customerId'));
+        return view('reports.order-history', compact('orders', 'customers', 'search', 'dateFrom', 'dateTo', 'status', 'customerId'));
     }
 
     public function paymentsReport(Request $request)
@@ -540,49 +555,108 @@ class ReportController extends Controller
         $bankFilter = $request->get('bank');
         $search = $request->get('search');
 
-        $baseQuery = BankTransaction::query()
+        // Cash Query Base
+        $cashBase = CashTransaction::query()
+            ->when($dateFrom, fn($q) => $q->whereDate('transaction_date', '>=', $dateFrom))
+            ->when($dateTo, fn($q) => $q->whereDate('transaction_date', '<=', $dateTo));
+
+        // Bank Query Base
+        $bankBase = BankTransaction::query()
             ->when($dateFrom, fn($q) => $q->whereDate('transaction_date', '>=', $dateFrom))
             ->when($dateTo, fn($q) => $q->whereDate('transaction_date', '<=', $dateTo));
 
         // Overall Period KPI Statistics
-        $periodIncomeTotal = (float) (clone $baseQuery)->where('type', 'income')->sum('amount');
-        $periodExpenseTotal = (float) (clone $baseQuery)->where('type', 'expense')->sum('amount');
-        $totalTransactionsCount = (int) (clone $baseQuery)->count();
+        $cashInTotal = (float) (clone $cashBase)->where('type', 'income')->sum('amount');
+        $cashOutTotal = (float) (clone $cashBase)->where('type', 'expense')->sum('amount');
+        $bankInTotal = (float) (clone $bankBase)->where('type', 'income')->sum('amount');
+        $bankOutTotal = (float) (clone $bankBase)->where('type', 'expense')->sum('amount');
+
+        $periodIncomeTotal = $cashInTotal + $bankInTotal;
+        $periodExpenseTotal = $cashOutTotal + $bankOutTotal;
+        $totalTransactionsCount = (clone $cashBase)->count() + (clone $bankBase)->count();
         $netFlow = $periodIncomeTotal - $periodExpenseTotal;
 
-        // Cash vs Bank breakdowns
-        $cashInTotal = (float) (clone $baseQuery)->where('transaction_method', 'cash')->where('type', 'income')->sum('amount');
-        $cashOutTotal = (float) (clone $baseQuery)->where('transaction_method', 'cash')->where('type', 'expense')->sum('amount');
-        $bankInTotal = (float) (clone $baseQuery)->whereIn('transaction_method', ['bank_transfer', 'cheque'])->where('type', 'income')->sum('amount');
-        $bankOutTotal = (float) (clone $baseQuery)->whereIn('transaction_method', ['bank_transfer', 'cheque'])->where('type', 'expense')->sum('amount');
-
-        // Filtered transactions for the report table
-        $query = (clone $baseQuery);
-
-        if ($type && in_array($type, ['income', 'expense'])) {
-            $query->where('type', $type);
-        }
-
-        if ($method && in_array($method, ['cash', 'bank_transfer', 'cheque'])) {
-            $query->where('transaction_method', $method);
-        }
-
-        if ($bankFilter) {
-            $query->where('bank_name', 'like', "%{$bankFilter}%");
-        }
-
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('description', 'like', "%{$search}%")
-                  ->orWhere('reference_no', 'like', "%{$search}%")
-                  ->orWhere('cheque_no', 'like', "%{$search}%")
-                  ->orWhere('bank_name', 'like', "%{$search}%")
-                  ->orWhere('transaction_no', 'like', "%{$search}%")
-                  ->orWhere('notes', 'like', "%{$search}%");
+        // Query Builder for table
+        $cashSelect = DB::table('cash_transactions')
+            ->select([
+                'id',
+                'transaction_no',
+                'type',
+                DB::raw("'cash' as transaction_method"),
+                DB::raw("'cash' as account_type"),
+                'amount',
+                'description',
+                'reference_no',
+                DB::raw("NULL as cheque_no"),
+                DB::raw("NULL as bank_name"),
+                'transaction_date',
+                'running_balance',
+                'notes',
+                'created_at',
+                'updated_at'
+            ])
+            ->when($dateFrom, fn($q) => $q->whereDate('transaction_date', '>=', $dateFrom))
+            ->when($dateTo, fn($q) => $q->whereDate('transaction_date', '<=', $dateTo))
+            ->when($type && in_array($type, ['income', 'expense']), fn($q) => $q->where('type', $type))
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('description', 'like', "%{$search}%")
+                        ->orWhere('reference_no', 'like', "%{$search}%")
+                        ->orWhere('transaction_no', 'like', "%{$search}%")
+                        ->orWhere('notes', 'like', "%{$search}%");
+                });
             });
+
+        $bankSelect = DB::table('bank_transactions')
+            ->select([
+                'id',
+                'transaction_no',
+                'type',
+                'transaction_method',
+                'account_type',
+                'amount',
+                'description',
+                'reference_no',
+                'cheque_no',
+                'bank_name',
+                'transaction_date',
+                'running_balance',
+                'notes',
+                'created_at',
+                'updated_at'
+            ])
+            ->when($dateFrom, fn($q) => $q->whereDate('transaction_date', '>=', $dateFrom))
+            ->when($dateTo, fn($q) => $q->whereDate('transaction_date', '<=', $dateTo))
+            ->when($type && in_array($type, ['income', 'expense']), fn($q) => $q->where('type', $type))
+            ->when($bankFilter, fn($q) => $q->where('bank_name', 'like', "%{$bankFilter}%"))
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('description', 'like', "%{$search}%")
+                        ->orWhere('reference_no', 'like', "%{$search}%")
+                        ->orWhere('cheque_no', 'like', "%{$search}%")
+                        ->orWhere('bank_name', 'like', "%{$search}%")
+                        ->orWhere('transaction_no', 'like', "%{$search}%")
+                        ->orWhere('notes', 'like', "%{$search}%");
+                });
+            });
+
+        if ($method === 'cash') {
+            $tableQuery = $cashSelect;
+        } elseif ($method === 'bank_transfer' || $method === 'cheque') {
+            $tableQuery = $bankSelect->where('transaction_method', $method);
+        } else {
+            $tableQuery = $cashSelect->unionAll($bankSelect);
         }
 
-        $transactions = $query->latest('transaction_date')->latest('id')->paginate(25)->withQueryString();
+        $transactions = $tableQuery->orderBy('transaction_date', 'desc')->orderBy('id', 'desc')->paginate(25)->withQueryString();
+
+        $transactions->getCollection()->transform(function ($item) {
+            if (is_string($item->transaction_date)) {
+                $item->transaction_date = Carbon::parse($item->transaction_date);
+            }
+            return $item;
+        });
+
         $banks = Bank::orderBy('bank_name')->get();
 
         return view('reports.transactions', compact(

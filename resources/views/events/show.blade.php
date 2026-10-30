@@ -121,6 +121,9 @@
                 <i class="bi bi-pencil me-1"></i> Edit Event
             </a>
             @if($event->order)
+                <a href="{{ route('orders.print', $event->order) }}" class="btn btn-outline-dark shadow-sm" target="_blank">
+                    <i class="bi bi-printer me-1"></i> Print Invoice
+                </a>
                 <a href="{{ route('orders.show', $event->order) }}" class="btn btn-dark shadow-sm" target="_blank">
                     <i class="bi bi-receipt me-1"></i> View Order ({{ $event->order->order_no }})
                 </a>

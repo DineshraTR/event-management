@@ -199,9 +199,16 @@
                                         {{ $order->event->event_name }}
                                     </a>
                                 </div>
-                                <small class="text-muted font-monospace" style="font-size: 11px;">
-                                    {{ $order->event->event_no }}
-                                </small>
+                                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                    <small class="text-muted font-monospace" style="font-size: 11px;">
+                                        {{ $order->event->event_no }}
+                                    </small>
+                                    @if($order->package_name || $order->event->subCategory)
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5" style="font-size: 10px;">
+                                            <i class="bi bi-box-seam me-1"></i>{{ $order->package_name ?: $order->event->subCategory->name }}
+                                        </span>
+                                    @endif
+                                </div>
                             @else
                                 <span class="text-muted small">No event linked</span>
                             @endif

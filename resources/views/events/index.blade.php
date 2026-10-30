@@ -149,10 +149,9 @@
         <!-- Tab 1: Orders Placed -->
         <a href="{{ route('events.index', array_merge(request()->except('tab', 'page'), ['tab' => 'ordered'])) }}"
            class="nav-link px-3 py-2 rounded-2 d-inline-flex align-items-center gap-2 {{ $tab === 'ordered' ? 'active' : '' }}"
-           style="{{ $tab === 'ordered' ? 'background: #059669; color: #ffffff !important;' : 'color: #059669; font-weight: 600;' }}">
-            <i class="bi bi-cart-check-fill {{ $tab === 'ordered' ? 'text-white' : 'text-success' }}"></i>
+           style="{{ $tab === 'ordered' ? 'background: #0f172a; color: #ffffff !important;' : 'color: #475569; font-weight: 600;' }}">
             <span>Orders Placed</span>
-            <span class="badge {{ $tab === 'ordered' ? 'bg-white text-success' : 'bg-success-subtle text-success border border-success-subtle' }}" style="font-size: 11px; font-weight: 700;">
+            <span class="badge {{ $tab === 'ordered' ? 'bg-white text-dark' : 'bg-light text-dark border' }}" style="font-size: 11px; font-weight: 700;">
                 {{ $countOrdered }}
             </span>
         </a>
@@ -160,10 +159,9 @@
         <!-- Tab 2: No Orders Placed -->
         <a href="{{ route('events.index', array_merge(request()->except('tab', 'page'), ['tab' => 'no_order'])) }}"
            class="nav-link px-3 py-2 rounded-2 d-inline-flex align-items-center gap-2 {{ $tab === 'no_order' ? 'active' : '' }}"
-           style="{{ $tab === 'no_order' ? 'background: #d97706; color: #ffffff !important;' : 'color: #d97706; font-weight: 600;' }}">
-            <i class="bi bi-hourglass-split {{ $tab === 'no_order' ? 'text-white' : 'text-warning' }}"></i>
+           style="{{ $tab === 'no_order' ? 'background: #0f172a; color: #ffffff !important;' : 'color: #475569; font-weight: 600;' }}">
             <span>No Order Placed</span>
-            <span class="badge {{ $tab === 'no_order' ? 'bg-white text-warning-emphasis' : 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' }}" style="font-size: 11px; font-weight: 700;">
+            <span class="badge {{ $tab === 'no_order' ? 'bg-white text-dark' : 'bg-light text-dark border' }}" style="font-size: 11px; font-weight: 700;">
                 {{ $countNoOrder }}
             </span>
         </a>
@@ -172,7 +170,6 @@
         <a href="{{ route('events.index', array_merge(request()->except('tab', 'page'), ['tab' => 'all'])) }}"
            class="nav-link px-3 py-2 rounded-2 d-inline-flex align-items-center gap-2 {{ $tab === 'all' ? 'active' : '' }}"
            style="{{ $tab === 'all' ? 'background: #0f172a; color: #ffffff !important;' : 'color: #475569; font-weight: 600;' }}">
-            <i class="bi bi-collection {{ $tab === 'all' ? 'text-white' : 'text-secondary' }}"></i>
             <span>All Events</span>
             <span class="badge {{ $tab === 'all' ? 'bg-white text-dark' : 'bg-light text-dark border' }}" style="font-size: 11px; font-weight: 700;">
                 {{ $countAll }}

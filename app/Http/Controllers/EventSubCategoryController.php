@@ -10,9 +10,32 @@ use Illuminate\Http\Request;
 
 class EventSubCategoryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $subCategories = EventSubCategory::with('category')->latest()->paginate(25)->withQueryString();
+        $search = $request->input('search');
+        $status = $request->input('status');
+
+        $query = EventSubCategory::with('category');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhereHas('category', function ($cq) use ($search) {
+                      $cq->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        if ($status !== null && $status !== '' && $status !== 'all') {
+            if ($status === 'active' || $status === '1') {
+                $query->where('is_active', true);
+            } elseif ($status === 'inactive' || $status === '0') {
+                $query->where('is_active', false);
+            }
+        }
+
+        $subCategories = $query->latest()->paginate(25)->withQueryString();
         return view('event-sub-categories.index', compact('subCategories'));
     }
 
@@ -132,7 +155,7 @@ class EventSubCategoryController extends Controller
             'sell_price' => $sub->sell_price,
             'services' => $sub->subCategoryServices->map(fn($s) => [
                 'service_id' => $s->service_id,
-                'service_name' => $s->service->name,
+                'service_name' => $s->service?->name ?? ('Service #' . $s->service_id),
                 'qty' => $s->qty,
                 'unit_price' => $s->cost_price,
                 'total_price' => $s->cost_price * $s->qty,

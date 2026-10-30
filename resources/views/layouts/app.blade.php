@@ -1976,7 +1976,7 @@
 
             <!-- 5. Settings (Dropdown) -->
             @php
-                $isSettingsActive = request()->routeIs('banks.*') || request()->routeIs('event-categories.*') || request()->routeIs('event-sub-categories.*') || request()->routeIs('services.*') || request()->routeIs('users.*');
+                $isSettingsActive = request()->routeIs('banks.*') || request()->routeIs('event-categories.*') || request()->routeIs('event-sub-categories.*') || request()->routeIs('expense-categories.*') || request()->routeIs('services.*') || request()->routeIs('users.*');
             @endphp
             <div class="sidebar-dropdown">
                 <a href="#menuSettings" 
@@ -2006,6 +2006,10 @@
                         <a href="{{ route('event-sub-categories.index') }}" class="sidebar-link {{ request()->routeIs('event-sub-categories.*') ? 'active' : '' }}">
                             <i class="bi bi-collection-fill"></i>
                             <span>Sub-Categories</span>
+                        </a>
+                        <a href="{{ route('expense-categories.index') }}" class="sidebar-link {{ request()->routeIs('expense-categories.*') ? 'active' : '' }}">
+                            <i class="bi bi-tags-fill"></i>
+                            <span>Expense Categories</span>
                         </a>
                         @if((Auth::user()->role ?? '') === 'Admin')
                         <a href="{{ route('users.index') }}" class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}">

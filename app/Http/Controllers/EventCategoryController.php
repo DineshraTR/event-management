@@ -7,9 +7,29 @@ use Illuminate\Http\Request;
 
 class EventCategoryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $categories = EventCategory::withCount('subCategories')->latest()->paginate(25)->withQueryString();
+        $search = $request->input('search');
+        $status = $request->input('status');
+
+        $query = EventCategory::withCount('subCategories');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        if ($status !== null && $status !== '' && $status !== 'all') {
+            if ($status === 'active' || $status === '1') {
+                $query->where('is_active', true);
+            } elseif ($status === 'inactive' || $status === '0') {
+                $query->where('is_active', false);
+            }
+        }
+
+        $categories = $query->latest()->paginate(25)->withQueryString();
         return view('event-categories.index', compact('categories'));
     }
 

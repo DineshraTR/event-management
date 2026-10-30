@@ -104,14 +104,24 @@ class OrderController extends Controller
             'order_date' => 'required|date',
             'discount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
+            'package_sell_price' => 'nullable|numeric|min:0',
+            'package_name' => 'nullable|string',
             'services' => 'nullable|array',
             'other_charges' => 'nullable|array',
         ]);
 
         DB::transaction(function () use ($request, $validated, &$order) {
+            $event = Event::with('subCategory')->find($validated['event_id']);
+            $packageSellPrice = (float) $request->input('package_sell_price', $event?->package_sell_price ?? 0);
+            $packageName = $request->input('package_name', $event?->subCategory?->name);
+
             $order = Order::create([
                 'event_id' => $validated['event_id'],
                 'customer_id' => $validated['customer_id'],
+                'event_sub_category_id' => $event?->event_sub_category_id,
+                'package_name' => $packageName,
+                'package_cost_price' => $event?->package_cost_price ?? 0,
+                'package_sell_price' => $packageSellPrice,
                 'order_date' => $validated['order_date'],
                 'discount' => $validated['discount'] ?? 0,
                 'notes' => $validated['notes'] ?? null,
@@ -120,6 +130,19 @@ class OrderController extends Controller
                 'paid_amount' => 0,
                 'balance' => 0,
             ]);
+
+            // Add package base price as top line item if provided
+            if ($packageSellPrice > 0 || $packageName) {
+                OrderService::create([
+                    'order_id' => $order->id,
+                    'service_id' => null,
+                    'is_package_item' => true,
+                    'description' => ($packageName ?: 'Event Package') . ' (Base Package)',
+                    'qty' => 1,
+                    'unit_price' => $packageSellPrice,
+                    'total_price' => $packageSellPrice,
+                ]);
+            }
 
             // Add services
             if ($request->has('services')) {
@@ -158,7 +181,7 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        $order->load(['customer', 'event.subCategory.category', 'services.service', 'otherCharges', 'payments']);
+        $order->load(['customer', 'event.subCategory.category', 'event.subCategory.subCategoryServices.service', 'services.service', 'otherCharges', 'payments']);
         return view('orders.show', compact('order'));
     }
 
@@ -167,7 +190,7 @@ class OrderController extends Controller
         $customers = Customer::where('is_active', true)->orderBy('name')->get();
         $events = Event::with('customer')->orderBy('event_date')->get();
         $services = Service::where('is_active', true)->get();
-        $order->load(['customer', 'services.service', 'otherCharges', 'event.subCategory']);
+        $order->load(['customer', 'services.service', 'otherCharges', 'event.subCategory.category', 'event.subCategory.subCategoryServices.service']);
         return view('orders.edit', compact('order', 'services', 'customers', 'events'));
     }
 
@@ -179,13 +202,41 @@ class OrderController extends Controller
             'order_date' => 'required|date',
             'discount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
+            'package_sell_price' => 'nullable|numeric|min:0',
+            'package_name' => 'nullable|string',
         ]);
 
         DB::transaction(function () use ($request, $validated, $order) {
-            $order->update($validated);
+            $event = !empty($validated['event_id']) ? Event::with('subCategory')->find($validated['event_id']) : $order->event;
+            $packageSellPrice = (float) $request->input('package_sell_price', $order->package_sell_price ?? 0);
+            $packageName = $request->input('package_name', $order->package_name ?? $event?->subCategory?->name);
+
+            $updateData = $validated;
+            if ($event) {
+                $updateData['event_sub_category_id'] = $event->event_sub_category_id;
+                $updateData['package_cost_price'] = $event->package_cost_price ?? 0;
+            }
+            $updateData['package_name'] = $packageName;
+            $updateData['package_sell_price'] = $packageSellPrice;
+
+            $order->update($updateData);
 
             // Rebuild services
             $order->services()->delete();
+
+            // Add package base price as top line item if provided
+            if ($packageSellPrice > 0 || $packageName) {
+                OrderService::create([
+                    'order_id' => $order->id,
+                    'service_id' => null,
+                    'is_package_item' => true,
+                    'description' => ($packageName ?: 'Event Package') . ' (Base Package)',
+                    'qty' => 1,
+                    'unit_price' => $packageSellPrice,
+                    'total_price' => $packageSellPrice,
+                ]);
+            }
+
             if ($request->has('services')) {
                 foreach ($request->services as $svc) {
                     if (!empty($svc['description'])) {
@@ -235,34 +286,53 @@ class OrderController extends Controller
 
     public function apiGetEventDetails($eventId)
     {
-        $event = Event::with(['customer', 'subCategory.subCategoryServices.service', 'additionalServices.service', 'otherCharges'])
+        $event = Event::with(['customer', 'subCategory.category', 'subCategory.subCategoryServices.service', 'additionalServices.service', 'otherCharges'])
             ->findOrFail($eventId);
 
         return response()->json([
             'id' => $event->id,
+            'event_no' => $event->event_no,
             'event_name' => $event->event_name,
             'customer_id' => $event->customer_id,
             'customer_name' => $event->customer?->name,
-            'package_name' => $event->subCategory?->name,
-            'package_sell_price' => $event->package_sell_price,
-            'discount' => $event->discount,
-            'advance_payment' => $event->advance_payment,
+            'category_name' => $event->subCategory?->category?->name ?? 'General Category',
+            'package_id' => $event->event_sub_category_id,
+            'package_name' => $event->subCategory?->name ?? 'Custom Package',
+            'package_sell_price' => (float) $event->package_sell_price,
+            'package_cost_price' => (float) $event->package_cost_price,
+            'discount' => (float) $event->discount,
+            'advance_payment' => (float) $event->advance_payment,
             'package_services' => $event->subCategory?->subCategoryServices->map(fn($s) => [
                 'service_id' => $s->service_id,
-                'description' => $s->service?->name . ' (Package: ' . $event->subCategory?->name . ')',
+                'name' => $s->service?->name ?? 'Service',
+                'description' => $s->service?->name ?? 'Service',
                 'qty' => $s->qty,
-                'unit_price' => $s->cost_price,
+                'cost_price' => (float) $s->cost_price,
             ]) ?? [],
             'additional_services' => $event->additionalServices->map(fn($s) => [
                 'service_id' => $s->service_id,
                 'description' => $s->description,
                 'qty' => $s->qty,
-                'unit_price' => $s->unit_price,
+                'unit_price' => (float) $s->unit_price,
             ]),
             'other_charges' => $event->otherCharges->map(fn($c) => [
                 'description' => $c->description,
-                'amount' => $c->amount,
+                'amount' => (float) $c->amount,
             ]),
         ]);
+    }
+
+    public function print(Order $order)
+    {
+        $order->load([
+            'customer',
+            'event.subCategory.category',
+            'event.subCategory.subCategoryServices.service',
+            'services.service',
+            'otherCharges',
+            'payments',
+        ]);
+
+        return view('orders.print', compact('order'));
     }
 }

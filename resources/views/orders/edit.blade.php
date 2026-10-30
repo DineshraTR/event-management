@@ -172,6 +172,23 @@
         border-color: #64748b !important;
         color: #0f172a !important;
     }
+
+    .package-service-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-radius: 20px;
+        padding: 4px 12px;
+        font-size: 12px;
+        color: #334155;
+        font-weight: 500;
+    }
+    .package-service-pill i {
+        color: #0d6efd;
+        font-size: 13px;
+    }
 </style>
 
 <div class="container-fluid px-0">
@@ -264,45 +281,94 @@
                         </div>
 
                         <!-- Order Date -->
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <label class="custom-input-label">
                                 <i class="bi bi-calendar-date"></i>
                                 Order Date <span class="text-danger">*</span>
                             </label>
                             <input type="date" name="order_date" class="form-control" value="{{ old('order_date', $order->order_date?->format('Y-m-d')) }}" required>
                         </div>
+                    </div>
+                </div>
 
-                        <!-- Package Reference -->
-                        <div class="col-md-6">
+                <!-- Section 2: Package Selection & Pricing (From Event Register) -->
+                @php
+                    $basePackageItem = $order->services->first(fn($s) => $s->is_package_item || str_contains($s->description, '(Base Package)'));
+                    $initPkgServices = $order->event?->subCategory?->subCategoryServices ?? collect();
+                    $initPackageSellPrice = old('package_sell_price', $order->package_sell_price > 0 ? $order->package_sell_price : ($basePackageItem?->unit_price ?? ($order->event?->package_sell_price ?? 0)));
+                    $initPackageName = old('package_name', $order->package_name ?: ($order->event?->subCategory?->name ?? ''));
+                @endphp
+                <div class="custom-section-box">
+                    <div class="form-section-title">
+                        <i class="bi bi-box-seam-fill"></i>
+                        <span>Package Selection & Pricing</span>
+                    </div>
+
+                    <div class="row g-3">
+                        <!-- Category Display -->
+                        <div class="col-md-4">
                             <label class="custom-input-label">
-                                <i class="bi bi-box-seam"></i>
-                                Package Reference
+                                <i class="bi bi-folder2-open"></i>
+                                Event Category
                             </label>
-                            <div class="p-2 border rounded-3 bg-white" id="eventPackageBadge" style="min-height: 40px; display: flex; align-items: center;">
-                                @if($order->event?->subCategory)
-                                    <div class="d-flex justify-content-between align-items-center w-100">
-                                        <span class="fw-bold text-dark"><i class="bi bi-box-seam text-primary me-1"></i> {{ $order->event->subCategory->name }}</span>
-                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Base: Rs. {{ number_format($order->event->package_sell_price, 2) }}</span>
-                                    </div>
-                                @else
-                                    <span class="text-muted small">
-                                        <i class="bi bi-info-circle me-1"></i> Custom / Non-package Event
-                                    </span>
-                                @endif
+                            <input type="text" id="orderCategoryDisplay" class="form-control bg-light" readonly value="{{ $order->event?->subCategory?->category?->name ?? '—' }}">
+                        </div>
+
+                        <!-- Sub-Category / Package Display -->
+                        <div class="col-md-4">
+                            <label class="custom-input-label">
+                                <i class="bi bi-boxes"></i>
+                                Booked Sub-Category / Package
+                            </label>
+                            <input type="text" id="orderPackageDisplay" class="form-control bg-light fw-bold text-dark" readonly value="{{ $initPackageName ?: '—' }}">
+                            <input type="hidden" name="package_name" id="orderPackageNameInput" value="{{ $initPackageName }}">
+                        </div>
+
+                        <!-- Package Base Sell Price (Editable) -->
+                        <div class="col-md-4">
+                            <label class="custom-input-label">
+                                <i class="bi bi-cash-stack"></i>
+                                Package Base Sell Price (Rs.) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="number" step="0.01" min="0" name="package_sell_price" id="orderPackageSellPrice" class="form-control fw-bold text-primary" value="{{ number_format((float)$initPackageSellPrice, 2, '.', '') }}" oninput="calculateOrderTotals()">
                             </div>
+                            <small class="text-muted d-block mt-1" style="font-size: 11.5px;">Auto-populated from event package; directly included in order calculation.</small>
+                        </div>
+                    </div>
+
+                    <!-- Package Included Services Preview Box -->
+                    <div id="packageServicesBox" class="mt-3 p-3 bg-white rounded-3 border {{ $initPkgServices->count() > 0 ? '' : 'd-none' }} shadow-sm">
+                        <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
+                            <span class="fw-bold text-dark small">
+                                <i class="bi bi-check-circle-fill text-success me-1"></i> Included in Selected Package:
+                            </span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="pkgSvcCountBadge">
+                                {{ $initPkgServices->count() }} Services
+                            </span>
+                        </div>
+                        <div id="packageServicesList" class="d-flex flex-wrap gap-2 pt-1">
+                            @foreach($initPkgServices as $ps)
+                                <div class="package-service-pill">
+                                    <i class="bi bi-check2-circle"></i>
+                                    <span>{{ $ps->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $ps->qty }}</strong></span>
+                                </div>
+                            @endforeach
                         </div>
                     </div>
                 </div>
 
-                <!-- Section 2: Order Services (Package items + Additional items) -->
+                <!-- Section 3: Additional Services & Deliverables -->
                 @php
-                    $existingServices = old('services', $order->services->map(fn($s) => [
-                        'service_id' => $s->service_id,
-                        'description' => $s->description,
-                        'qty' => $s->qty,
-                        'unit_price' => $s->unit_price,
-                        'total_price' => $s->total_price,
-                    ])->toArray());
+                    $existingServices = old('services', $order->services
+                        ->filter(fn($s) => !$s->is_package_item && !str_contains($s->description, '(Base Package)'))
+                        ->map(fn($s) => [
+                            'service_id' => $s->service_id,
+                            'description' => $s->description,
+                            'qty' => $s->qty,
+                            'unit_price' => $s->unit_price,
+                            'total_price' => $s->total_price,
+                        ])->values()->toArray());
                 @endphp
                 <div class="custom-section-box">
                     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -476,7 +542,11 @@
                         <div class="col-lg-6">
                             <div class="financial-summary-card">
                                 <div class="financial-line-item">
-                                    <span class="text-muted">Services Total:</span>
+                                    <span class="text-muted">Package Base Price:</span>
+                                    <span class="fw-semibold text-primary" id="calcPackageSum">Rs. 0.00</span>
+                                </div>
+                                <div class="financial-line-item">
+                                    <span class="text-muted">Additional Services:</span>
                                     <span class="fw-semibold text-dark" id="calcServicesSum">Rs. 0.00</span>
                                 </div>
                                 <div class="financial-line-item">
@@ -587,7 +657,10 @@
     }
 
     function onOrderEventChange(eventId) {
-        if (!eventId) return;
+        if (!eventId) {
+            resetOrderEventDetails();
+            return;
+        }
 
         fetch(`/api/event/${eventId}/order-details`)
             .then(res => res.json())
@@ -596,14 +669,59 @@
                     document.getElementById('orderCustomerId').value = data.customer_id;
                 }
 
-                const pkgBadge = document.getElementById('eventPackageBadge');
-                pkgBadge.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-center w-100">
-                        <span class="fw-bold text-dark"><i class="bi bi-box-seam text-primary me-1"></i> ${data.package_name || 'Custom Package'}</span>
-                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Base: Rs. ${parseFloat(data.package_sell_price).toLocaleString()}</span>
-                    </div>
-                `;
+                // 1. Update Package Selection & Pricing Card
+                const categoryEl = document.getElementById('orderCategoryDisplay');
+                if (categoryEl) categoryEl.value = data.category_name || '—';
+
+                const packageEl = document.getElementById('orderPackageDisplay');
+                if (packageEl) packageEl.value = data.package_name || '—';
+
+                const packageNameInput = document.getElementById('orderPackageNameInput');
+                if (packageNameInput) packageNameInput.value = data.package_name || '';
+
+                const packagePriceEl = document.getElementById('orderPackageSellPrice');
+                if (packagePriceEl) {
+                    packagePriceEl.value = parseFloat(data.package_sell_price || 0).toFixed(2);
+                }
+
+                // 2. Render Included Services Pills
+                const pkgBox = document.getElementById('packageServicesBox');
+                const pkgList = document.getElementById('packageServicesList');
+                const pkgBadge = document.getElementById('pkgSvcCountBadge');
+
+                if (data.package_services && data.package_services.length > 0) {
+                    pkgBox.classList.remove('d-none');
+                    pkgBadge.innerText = `${data.package_services.length} Services`;
+                    pkgList.innerHTML = data.package_services.map(ps => `
+                        <div class="package-service-pill">
+                            <i class="bi bi-check2-circle"></i>
+                            <span>${ps.name} &bull; Qty: <strong>${ps.qty}</strong></span>
+                        </div>
+                    `).join('');
+                } else {
+                    pkgBox.classList.add('d-none');
+                    pkgList.innerHTML = '';
+                }
+
+                calculateOrderTotals();
+            })
+            .catch(err => {
+                console.error('Error fetching event details:', err);
             });
+    }
+
+    function resetOrderEventDetails() {
+        const categoryEl = document.getElementById('orderCategoryDisplay');
+        if (categoryEl) categoryEl.value = '—';
+        const packageEl = document.getElementById('orderPackageDisplay');
+        if (packageEl) packageEl.value = '—';
+        const packageNameInput = document.getElementById('orderPackageNameInput');
+        if (packageNameInput) packageNameInput.value = '';
+        const packagePriceEl = document.getElementById('orderPackageSellPrice');
+        if (packagePriceEl) packagePriceEl.value = '0.00';
+        const pkgBox = document.getElementById('packageServicesBox');
+        if (pkgBox) pkgBox.classList.add('d-none');
+        calculateOrderTotals();
     }
 
     function addOrderServiceRow() {
@@ -733,6 +851,8 @@
     }
 
     function calculateOrderTotals() {
+        const pkgBasePrice = parseFloat(document.getElementById('orderPackageSellPrice')?.value) || 0;
+
         let servicesTotal = 0;
         document.querySelectorAll('#orderServicesTbody tr').forEach(row => {
             const qty = parseInt(row.querySelector('[id^="osvc_qty_"]')?.value) || 0;
@@ -746,12 +866,16 @@
         });
 
         const discount = parseFloat(document.getElementById('orderDiscountInput')?.value) || 0;
-        const grandTotal = Math.max(0, servicesTotal + chargesTotal - discount);
+        const subTotal = pkgBasePrice + servicesTotal + chargesTotal;
+        const grandTotal = Math.max(0, subTotal - discount);
         const remainingBalance = Math.max(0, grandTotal - orderPaidAmount);
 
         document.getElementById('orderServicesTotalDisplay').innerText = servicesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('orderChargesTotalDisplay').innerText = chargesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+        if (document.getElementById('calcPackageSum')) {
+            document.getElementById('calcPackageSum').innerText = 'Rs. ' + pkgBasePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
         document.getElementById('calcServicesSum').innerText = 'Rs. ' + servicesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('calcChargesSum').innerText = 'Rs. ' + chargesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('orderGrandTotalDisplay').innerText = 'Rs. ' + grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

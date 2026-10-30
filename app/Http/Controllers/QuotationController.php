@@ -101,6 +101,7 @@ class QuotationController extends Controller
         $validated = $request->validate([
             'customer_id' => 'required|exists:customers,id',
             'event_sub_category_id' => 'nullable|exists:event_sub_categories,id',
+            'package_sell_price' => 'nullable|numeric|min:0',
             'quotation_date' => 'required|date',
             'valid_until' => 'nullable|date',
             'event_name' => 'nullable|string|max:255',
@@ -111,9 +112,20 @@ class QuotationController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $validated, &$quotation) {
+            $subCategory = !empty($validated['event_sub_category_id']) 
+                ? EventSubCategory::find($validated['event_sub_category_id']) 
+                : null;
+            $packageSellPrice = $subCategory ? (float) $request->input('package_sell_price', $subCategory->sell_price) : 0;
+            $packageName = $subCategory ? $subCategory->name : null;
+            $packageCostPrice = $subCategory ? (float) $subCategory->cost_price : 0;
+
+            $validated['package_name'] = $packageName;
+            $validated['package_cost_price'] = $packageCostPrice;
+            $validated['package_sell_price'] = $packageSellPrice;
+
             $quotation = Quotation::create($validated);
 
-            $total = 0;
+            $servicesTotal = 0;
             if ($request->has('services')) {
                 foreach ($request->services as $svc) {
                     if (!empty($svc['description'])) {
@@ -126,7 +138,7 @@ class QuotationController extends Controller
                             'unit_price' => $svc['unit_price'] ?? 0,
                             'total_price' => $lineTotal,
                         ]);
-                        $total += $lineTotal;
+                        $servicesTotal += $lineTotal;
                     }
                 }
             }
@@ -140,16 +152,20 @@ class QuotationController extends Controller
                             'description' => $charge['description'],
                             'amount' => $charge['amount'] ?? 0,
                         ]);
-                        $chargesTotal += $charge['amount'] ?? 0;
+                        $chargesTotal += (float) ($charge['amount'] ?? 0);
                     }
                 }
             }
 
-            $subTotal = $total + $chargesTotal;
-            $discount = $validated['discount'] ?? 0;
+            $subTotal = $packageSellPrice + $servicesTotal + $chargesTotal;
+            $discount = (float) ($validated['discount'] ?? 0);
+            $totalAmount = max(0, $subTotal - $discount);
+
             $quotation->update([
+                'additional_services_total' => $servicesTotal,
+                'other_charges_total' => $chargesTotal,
                 'sub_total' => $subTotal,
-                'total_amount' => $subTotal - $discount,
+                'total_amount' => $totalAmount,
             ]);
         });
 
@@ -158,7 +174,7 @@ class QuotationController extends Controller
 
     public function show(Quotation $quotation)
     {
-        $quotation->load(['customer', 'subCategory.category', 'services.service', 'otherCharges']);
+        $quotation->load(['customer', 'subCategory.category', 'subCategory.subCategoryServices.service', 'services.service', 'otherCharges']);
         return view('quotations.show', compact('quotation'));
     }
 
@@ -176,6 +192,7 @@ class QuotationController extends Controller
         $validated = $request->validate([
             'customer_id' => 'required|exists:customers,id',
             'event_sub_category_id' => 'nullable|exists:event_sub_categories,id',
+            'package_sell_price' => 'nullable|numeric|min:0',
             'quotation_date' => 'required|date',
             'valid_until' => 'nullable|date',
             'event_name' => 'nullable|string|max:255',
@@ -187,10 +204,21 @@ class QuotationController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $validated, $quotation) {
+            $subCategory = !empty($validated['event_sub_category_id']) 
+                ? EventSubCategory::find($validated['event_sub_category_id']) 
+                : null;
+            $packageSellPrice = $subCategory ? (float) $request->input('package_sell_price', $subCategory->sell_price) : 0;
+            $packageName = $subCategory ? $subCategory->name : null;
+            $packageCostPrice = $subCategory ? (float) $subCategory->cost_price : 0;
+
+            $validated['package_name'] = $packageName;
+            $validated['package_cost_price'] = $packageCostPrice;
+            $validated['package_sell_price'] = $packageSellPrice;
+
             $quotation->services()->delete();
             $quotation->otherCharges()->delete();
 
-            $total = 0;
+            $servicesTotal = 0;
             if ($request->has('services')) {
                 foreach ($request->services as $svc) {
                     if (!empty($svc['description'])) {
@@ -203,7 +231,7 @@ class QuotationController extends Controller
                             'unit_price' => $svc['unit_price'] ?? 0,
                             'total_price' => $lineTotal,
                         ]);
-                        $total += $lineTotal;
+                        $servicesTotal += $lineTotal;
                     }
                 }
             }
@@ -217,15 +245,20 @@ class QuotationController extends Controller
                             'description' => $charge['description'],
                             'amount' => $charge['amount'] ?? 0,
                         ]);
-                        $chargesTotal += $charge['amount'] ?? 0;
+                        $chargesTotal += (float) ($charge['amount'] ?? 0);
                     }
                 }
             }
 
-            $subTotal = $total + $chargesTotal;
-            $discount = $validated['discount'] ?? 0;
+            $subTotal = $packageSellPrice + $servicesTotal + $chargesTotal;
+            $discount = (float) ($validated['discount'] ?? 0);
+            $totalAmount = max(0, $subTotal - $discount);
+
+            $validated['additional_services_total'] = $servicesTotal;
+            $validated['other_charges_total'] = $chargesTotal;
             $validated['sub_total'] = $subTotal;
-            $validated['total_amount'] = $subTotal - $discount;
+            $validated['total_amount'] = $totalAmount;
+
             $quotation->update($validated);
         });
 
@@ -240,7 +273,7 @@ class QuotationController extends Controller
 
     public function print(Quotation $quotation)
     {
-        $quotation->load(['customer', 'subCategory.category', 'services.service', 'otherCharges']);
+        $quotation->load(['customer', 'subCategory.category', 'subCategory.subCategoryServices.service', 'services.service', 'otherCharges']);
         return view('quotations.print', compact('quotation'));
     }
 

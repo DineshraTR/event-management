@@ -10,7 +10,7 @@ class Payment extends Model
 {
     protected $fillable = [
         'payment_no', 'order_id', 'customer_id', 'amount',
-        'payment_type', 'payment_method', 'status', 'cheque_no', 'bank_name',
+        'payment_type', 'payment_method', 'reference', 'status', 'cheque_no', 'bank_name', 'bank_id',
         'payment_date', 'notes'
     ];
 
@@ -48,6 +48,11 @@ class Payment extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function bank(): BelongsTo
+    {
+        return $this->belongsTo(Bank::class);
     }
 
     public function cheque(): HasOne

@@ -19,6 +19,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\BankController;
 use App\Http\Controllers\ChequeController;
+use App\Http\Controllers\ExpenseCategoryController;
 
 // Public Auth Routes
 Route::get('login', [AuthController::class, 'showLoginForm'])->name('login');
@@ -42,6 +43,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('services', ServiceController::class);
     Route::resource('event-categories', EventCategoryController::class);
     Route::resource('event-sub-categories', EventSubCategoryController::class);
+    Route::resource('expense-categories', ExpenseCategoryController::class);
     Route::get('event-sub-categories/{subCategory}/services', [EventSubCategoryController::class, 'getServices'])->name('event-sub-categories.services');
     Route::get('api/sub-category/{id}', [EventSubCategoryController::class, 'apiGetSubCategory'])->name('api.sub-category');
     Route::get('api/sub-categories/{categoryId}', [EventSubCategoryController::class, 'apiGetByCategory'])->name('api.sub-categories');
@@ -58,11 +60,13 @@ Route::middleware('auth')->group(function () {
 
     // Orders
     Route::resource('orders', OrderController::class);
+    Route::get('orders/{order}/print', [OrderController::class, 'print'])->name('orders.print');
     Route::get('api/orders/event/{eventId}', [OrderController::class, 'getByEvent'])->name('api.orders.event');
     Route::get('api/event/{eventId}/order-details', [OrderController::class, 'apiGetEventDetails'])->name('api.event.order-details');
 
     // Payments
     Route::resource('payments', PaymentController::class);
+    Route::get('payments/{payment}/print', [PaymentController::class, 'printReceipt'])->name('payments.print');
     Route::get('payments/create/{orderId}', [PaymentController::class, 'createForOrder'])->name('payments.create-for-order');
 
     // Cheques Management

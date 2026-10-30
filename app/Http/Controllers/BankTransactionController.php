@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Bank;
 use App\Models\BankTransaction;
+use App\Models\CashTransaction;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -18,7 +19,9 @@ class BankTransactionController extends Controller
     {
         $today = Carbon::today()->format('Y-m-d');
         $banks = Bank::where('is_active', true)->orderBy('bank_name')->get();
-        $recentTransactions = BankTransaction::latest('transaction_date')->latest('id')->take(6)->get();
+        $recentBank = BankTransaction::latest('transaction_date')->latest('id')->take(4)->get();
+        $recentCash = CashTransaction::latest('transaction_date')->latest('id')->take(4)->get();
+        $recentTransactions = $recentBank->concat($recentCash)->sortByDesc('transaction_date')->take(6);
         return view('bank-transactions.create', compact('today', 'banks', 'recentTransactions'));
     }
 
@@ -37,40 +40,67 @@ class BankTransactionController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $validated['account_type'] = $validated['account_type'] ?? ($validated['transaction_method'] === 'cash' ? 'cash' : 'bank');
-
-        BankTransaction::create($validated);
-        return redirect()->route('bank-transactions.index')->with('success', 'Transaction recorded.');
+        if ($validated['transaction_method'] === 'cash') {
+            CashTransaction::create([
+                'type' => $validated['type'],
+                'amount' => $validated['amount'],
+                'description' => $validated['description'],
+                'reference_no' => $validated['reference_no'] ?? null,
+                'transaction_date' => $validated['transaction_date'],
+                'notes' => $validated['notes'] ?? null,
+            ]);
+            return redirect()->route('cash-book')->with('success', 'Cash transaction recorded into Cash Book successfully.');
+        } else {
+            $validated['account_type'] = $validated['account_type'] ?? ($validated['bank_name'] ?? 'bank');
+            BankTransaction::create($validated);
+            return redirect()->route('bank-book')->with('success', 'Bank transaction recorded into Bank Book successfully.');
+        }
     }
 
-    public function show(BankTransaction $bankTransaction)
+    public function show($id)
     {
-        return view('bank-transactions.show', compact('bankTransaction'));
+        $transaction = BankTransaction::find($id) ?? CashTransaction::findOrFail($id);
+        return view('bank-transactions.show', ['bankTransaction' => $transaction]);
     }
 
-    public function edit(BankTransaction $bankTransaction)
+    public function edit($id)
     {
-        return view('bank-transactions.edit', compact('bankTransaction'));
+        $transaction = BankTransaction::find($id) ?? CashTransaction::findOrFail($id);
+        return view('bank-transactions.edit', ['bankTransaction' => $transaction]);
     }
 
-    public function update(Request $request, BankTransaction $bankTransaction)
+    public function update(Request $request, $id)
     {
         $validated = $request->validate([
             'type' => 'required|in:income,expense',
-            'transaction_method' => 'required|in:cash,cheque,bank_transfer',
             'amount' => 'required|numeric|min:0.01',
             'description' => 'required|string|max:255',
             'transaction_date' => 'required|date',
             'notes' => 'nullable|string',
         ]);
-        $bankTransaction->update($validated);
-        return redirect()->route('bank-transactions.index')->with('success', 'Transaction updated.');
+
+        $bankTransaction = BankTransaction::find($id);
+        if ($bankTransaction) {
+            $bankTransaction->update($validated);
+            return redirect()->route('bank-book')->with('success', 'Bank transaction updated.');
+        }
+
+        $cashTransaction = CashTransaction::findOrFail($id);
+        $cashTransaction->update($validated);
+        return redirect()->route('cash-book')->with('success', 'Cash transaction updated.');
     }
 
-    public function destroy(BankTransaction $bankTransaction)
+    public function destroy($id)
     {
-        $bankTransaction->delete();
-        return redirect()->route('bank-transactions.index')->with('success', 'Transaction deleted.');
+        $bankTransaction = BankTransaction::find($id);
+        if ($bankTransaction) {
+            $bankTransaction->delete();
+            return redirect()->route('bank-book')->with('success', 'Bank transaction deleted.');
+        }
+
+        $cashTransaction = CashTransaction::findOrFail($id);
+        $cashTransaction->delete();
+        return redirect()->route('cash-book')->with('success', 'Cash transaction deleted.');
     }
 
     public function cashBook()
@@ -81,16 +111,14 @@ class BankTransactionController extends Controller
         $search = request('search');
 
         // Period overall totals (unfiltered by keyword for accurate financial balance)
-        $periodQuery = BankTransaction::where('transaction_method', 'cash')
-            ->whereBetween('transaction_date', [$dateFrom, $dateTo]);
+        $periodQuery = CashTransaction::whereBetween('transaction_date', [$dateFrom, $dateTo]);
 
         $periodIncomeTotal = (float) (clone $periodQuery)->where('type', 'income')->sum('amount');
         $periodExpenseTotal = (float) (clone $periodQuery)->where('type', 'expense')->sum('amount');
         $totalTransactionsCount = (int) (clone $periodQuery)->count();
 
         // Filtered transactions for the ledger view
-        $query = BankTransaction::where('transaction_method', 'cash')
-            ->whereBetween('transaction_date', [$dateFrom, $dateTo]);
+        $query = CashTransaction::whereBetween('transaction_date', [$dateFrom, $dateTo]);
 
         if ($type && in_array($type, ['income', 'expense'])) {
             $query->where('type', $type);
@@ -105,10 +133,9 @@ class BankTransactionController extends Controller
             });
         }
 
-        $transactions = $query->orderBy('transaction_date', 'asc')->orderBy('id', 'asc')->get();
+        $transactions = $query->with(['customer', 'order'])->orderBy('transaction_date', 'asc')->orderBy('id', 'asc')->get();
 
-        $openingBalance = (float) (BankTransaction::where('transaction_method', 'cash')
-            ->where('transaction_date', '<', $dateFrom)
+        $openingBalance = (float) (CashTransaction::where('transaction_date', '<', $dateFrom)
             ->selectRaw('SUM(CASE WHEN type="income" THEN amount ELSE -amount END) as balance')
             ->value('balance') ?? 0);
 
@@ -134,7 +161,7 @@ class BankTransactionController extends Controller
         $bankFilter = request('bank');
         $search = request('search');
 
-        $baseQuery = BankTransaction::whereIn('transaction_method', ['cheque', 'bank_transfer']);
+        $baseQuery = BankTransaction::query();
 
         if ($bankFilter) {
             $baseQuery->where('bank_name', 'like', "%{$bankFilter}%");
@@ -169,7 +196,7 @@ class BankTransactionController extends Controller
             });
         }
 
-        $transactions = $query->orderBy('transaction_date', 'asc')->orderBy('id', 'asc')->get();
+        $transactions = $query->with(['customer', 'order', 'cheque', 'bank'])->orderBy('transaction_date', 'asc')->orderBy('id', 'asc')->get();
 
         $openingBalance = (float) ((clone $baseQuery)
             ->where('transaction_date', '<', $dateFrom)
@@ -194,3 +221,4 @@ class BankTransactionController extends Controller
         ));
     }
 }
+

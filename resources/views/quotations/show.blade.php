@@ -154,9 +154,12 @@
                     <div class="col-sm-6">
                         <small class="text-muted d-block" style="font-size: 11.5px;">PACKAGE / CATEGORY</small>
                         <div class="fw-semibold text-dark mt-1">
-                            @if($quotation->subCategory)
-                                {{ $quotation->subCategory->name }}
-                                <small class="text-muted d-block">Category: {{ $quotation->subCategory->category?->name ?? 'General' }}</small>
+                            @if($quotation->subCategory || $quotation->package_name)
+                                <span>{{ $quotation->package_name ?? $quotation->subCategory->name }}</span>
+                                <span class="badge bg-primary-subtle text-primary border ms-1">
+                                    Base: Rs. {{ number_format($quotation->package_sell_price ?? $quotation->subCategory?->sell_price ?? 0, 2) }}
+                                </span>
+                                <small class="text-muted d-block">Category: {{ $quotation->subCategory?->category?->name ?? 'Package Preset' }}</small>
                             @else
                                 <span class="text-muted">Custom Package & Services</span>
                             @endif
@@ -172,6 +175,28 @@
                             @endif
                         </div>
                     </div>
+
+                    @if($quotation->subCategory && $quotation->subCategory->subCategoryServices->isNotEmpty())
+                        <div class="col-12 mt-3 pt-3 border-top">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <small class="text-muted fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
+                                    <i class="bi bi-check-circle-fill text-success me-1"></i> Deliverables Included in Package Preset:
+                                </small>
+                                <span class="badge bg-light text-secondary border">
+                                    {{ $quotation->subCategory->subCategoryServices->count() }} Deliverables
+                                </span>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach($quotation->subCategory->subCategoryServices as $pkgSvc)
+                                    <span class="badge bg-light text-dark border px-2.5 py-1.5" style="font-weight: 500; font-size: 12px;">
+                                        <i class="bi bi-check2 text-primary me-1"></i>
+                                        {{ $pkgSvc->service?->name ?? 'Service #' . $pkgSvc->service_id }}
+                                        <span class="text-muted ms-1">&bull; Qty: <strong>{{ $pkgSvc->qty }}</strong></span>
+                                    </span>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -180,10 +205,10 @@
         <div class="section-card">
             <div class="section-card-header">
                 <h6 class="section-card-title">
-                    <i class="bi bi-list-check text-primary"></i> Quoted Services & Items
+                    <i class="bi bi-stars text-primary"></i> Additional Services & Deliverables
                 </h6>
                 <span class="badge bg-light text-dark border">
-                    {{ $quotation->services->count() }} Items
+                    {{ $quotation->services->count() }} Additional Items
                 </span>
             </div>
             <div class="table-responsive">
@@ -376,6 +401,35 @@
                         </strong>
                     @else
                         <span class="text-muted">No expiry</span>
+                    @endif
+                </div>
+
+                @php
+                    $pkgSellPrice = (float)($quotation->package_sell_price ?? $quotation->subCategory?->sell_price ?? 0);
+                    $svcTotal = (float)($quotation->additional_services_total ?? $quotation->services->sum('total_price'));
+                    $chrTotal = (float)($quotation->other_charges_total ?? $quotation->otherCharges->sum('amount'));
+                @endphp
+
+                <div class="pt-2 border-top">
+                    @if($pkgSellPrice > 0)
+                        <div class="financial-line-item">
+                            <span class="text-muted">Package Base Price:</span>
+                            <strong class="text-primary">Rs. {{ number_format($pkgSellPrice, 2) }}</strong>
+                        </div>
+                    @endif
+
+                    @if($svcTotal > 0 || $pkgSellPrice == 0)
+                        <div class="financial-line-item">
+                            <span class="text-muted">Additional Services:</span>
+                            <strong class="text-dark">Rs. {{ number_format($svcTotal, 2) }}</strong>
+                        </div>
+                    @endif
+
+                    @if($chrTotal > 0)
+                        <div class="financial-line-item">
+                            <span class="text-muted">Other Charges:</span>
+                            <strong class="text-dark">Rs. {{ number_format($chrTotal, 2) }}</strong>
+                        </div>
                     @endif
                 </div>
 

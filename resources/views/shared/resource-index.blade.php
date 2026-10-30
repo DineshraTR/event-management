@@ -31,7 +31,7 @@
 <!-- Project Management Filter & Toolbar Card -->
 <div class="card shadow-sm border-0 mb-4" style="border-radius: 14px; overflow: hidden; border: 1px solid #edf2f7 !important;">
     <div class="card-body border-bottom p-3 bg-white">
-        <form method="GET" class="row g-2 align-items-end">
+        <form method="GET" action="{{ route($resourceRoute . '.index') }}" class="row g-2 align-items-end">
             <div class="col-12 col-sm-6 col-md-5 col-lg-4">
                 <label class="form-label small fw-bold text-muted mb-1" for="search">
                     <i class="bi bi-search me-1"></i> Quick Search

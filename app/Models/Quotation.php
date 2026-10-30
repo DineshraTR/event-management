@@ -9,7 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Quotation extends Model
 {
     protected $fillable = [
-        'quotation_no', 'customer_id', 'event_sub_category_id',
+        'quotation_no', 'customer_id', 'event_sub_category_id', 'package_name',
+        'package_cost_price', 'package_sell_price', 'additional_services_total', 'other_charges_total',
         'quotation_date', 'valid_until', 'event_name', 'event_date', 'venue',
         'sub_total', 'discount', 'total_amount', 'status', 'remarks'
     ];
@@ -18,6 +19,10 @@ class Quotation extends Model
         'quotation_date' => 'date',
         'valid_until' => 'date',
         'event_date' => 'date',
+        'package_cost_price' => 'decimal:2',
+        'package_sell_price' => 'decimal:2',
+        'additional_services_total' => 'decimal:2',
+        'other_charges_total' => 'decimal:2',
         'sub_total' => 'decimal:2',
         'discount' => 'decimal:2',
         'total_amount' => 'decimal:2',

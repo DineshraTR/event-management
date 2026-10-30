@@ -2,8 +2,8 @@
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- Host: 127.0.0.1
--- Generation Time: Oct 23, 2026 at 05:51 AM
+-- Host: 127.0.0.1:3308
+-- Generation Time: Oct 30, 2026 at 12:54 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -43,13 +43,6 @@ CREATE TABLE `banks` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `banks`
---
-
-INSERT INTO `banks` (`id`, `bank_name`, `account_name`, `account_number`, `branch`, `swift_code`, `contact_number`, `opening_balance`, `current_balance`, `is_active`, `notes`, `created_at`, `updated_at`) VALUES
-(1, 'Commercial Bank of Ceylon', 'Pubudu Ishantha', '8910023', 'Kandy', NULL, NULL, 10000.00, 10000.00, 1, NULL, '2026-10-21 01:34:33', '2026-10-21 01:44:00');
-
 -- --------------------------------------------------------
 
 --
@@ -62,9 +55,15 @@ CREATE TABLE `bank_transactions` (
   `type` enum('income','expense') NOT NULL,
   `transaction_method` enum('cash','cheque','bank_transfer') NOT NULL,
   `account_type` varchar(255) NOT NULL DEFAULT 'cash',
+  `bank_id` bigint(20) UNSIGNED DEFAULT NULL,
   `amount` decimal(12,2) NOT NULL,
   `description` varchar(255) NOT NULL,
   `reference_no` varchar(255) DEFAULT NULL,
+  `customer_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `order_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `payment_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `expense_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `cheque_id` bigint(20) UNSIGNED DEFAULT NULL,
   `cheque_no` varchar(255) DEFAULT NULL,
   `bank_name` varchar(255) DEFAULT NULL,
   `transaction_date` date NOT NULL,
@@ -73,14 +72,6 @@ CREATE TABLE `bank_transactions` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `bank_transactions`
---
-
-INSERT INTO `bank_transactions` (`id`, `transaction_no`, `type`, `transaction_method`, `account_type`, `amount`, `description`, `reference_no`, `cheque_no`, `bank_name`, `transaction_date`, `running_balance`, `notes`, `created_at`, `updated_at`) VALUES
-(1, 'TXN-000001', 'income', 'cash', 'cash', 50000.00, 'Opening Cash Book Balance', 'OP-CASH-001', NULL, NULL, '2026-10-01', 0.00, NULL, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(2, 'TXN-000002', 'income', 'bank_transfer', 'Commercial Bank', 250000.00, 'Opening Bank Balance', 'OP-BANK-001', NULL, 'Commercial Bank of Ceylon', '2026-10-01', 0.00, NULL, '2026-10-16 03:59:00', '2026-10-16 03:59:00');
 
 -- --------------------------------------------------------
 
@@ -109,6 +100,61 @@ CREATE TABLE `cache_locks` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `cash_transactions`
+--
+
+CREATE TABLE `cash_transactions` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `transaction_no` varchar(255) NOT NULL,
+  `type` enum('income','expense') NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `description` varchar(255) NOT NULL,
+  `reference_no` varchar(255) DEFAULT NULL,
+  `customer_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `order_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `payment_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `expense_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `transaction_date` date NOT NULL,
+  `running_balance` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `cheques`
+--
+
+CREATE TABLE `cheques` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `type` enum('IN','OUT') NOT NULL DEFAULT 'IN',
+  `cheque_number` varchar(100) NOT NULL,
+  `cheque_date` date NOT NULL,
+  `received_or_issued_date` date NOT NULL,
+  `amount` decimal(15,2) NOT NULL,
+  `payer_bank` varchar(255) DEFAULT NULL,
+  `payer_branch` varchar(255) DEFAULT NULL,
+  `payee_name` varchar(255) DEFAULT NULL,
+  `customer_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `order_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `payment_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `expense_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `bank_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `deposit_date` date DEFAULT NULL,
+  `clearance_date` date DEFAULT NULL,
+  `return_date` date DEFAULT NULL,
+  `return_reason` varchar(255) DEFAULT NULL,
+  `status` varchar(50) NOT NULL DEFAULT 'In Hand',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `customers`
 --
 
@@ -130,14 +176,6 @@ CREATE TABLE `customers` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `customers`
---
-
-INSERT INTO `customers` (`id`, `name`, `company_name`, `email`, `phone`, `phone2`, `address`, `city`, `postal_code`, `nic`, `dob`, `notes`, `lead_source`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'Kasun Perera', NULL, 'kasun.p@example.com', '+94 77 555 1234', NULL, 'No 45, Galle Road, Colombo 03', NULL, NULL, '199214502841', NULL, NULL, NULL, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(2, 'Nadeeka Senanayake', NULL, 'nadeeka.s@example.com', '+94 71 888 4321', NULL, '12/B Kandy Road, Kiribathgoda', NULL, NULL, '198865401923', NULL, NULL, NULL, 1, '2026-10-16 03:59:00', '2026-10-21 00:33:21');
 
 -- --------------------------------------------------------
 
@@ -171,17 +209,6 @@ CREATE TABLE `events` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `events`
---
-
-INSERT INTO `events` (`id`, `event_no`, `customer_id`, `event_sub_category_id`, `event_name`, `event_date`, `today_date`, `venue`, `remarks`, `package_cost_price`, `package_sell_price`, `additional_services_total`, `other_charges_total`, `sub_total`, `discount`, `total_amount`, `advance_payment`, `balance`, `status`, `notification_7_sent`, `notification_3_sent`, `created_at`, `updated_at`) VALUES
-(1, 'EV-000001', 1, 1, 'sd', '2026-10-19', '2026-10-16', 'kandy', NULL, 125000.00, 180000.00, 40000.00, 1000.00, 221000.00, 0.00, 221000.00, 0.00, 221000.00, 'confirmed', 0, 0, '2026-10-16 05:46:01', '2026-10-16 05:46:01'),
-(2, 'EV-000002', 2, 3, 'new Event', '2026-10-20', '2026-10-16', NULL, NULL, 90000.00, 135000.00, 15000.00, 0.00, 150000.00, 0.00, 150000.00, 0.00, 150000.00, 'pending', 0, 0, '2026-10-16 06:16:20', '2026-10-16 06:16:20'),
-(3, 'EV-000003', 1, 3, 'PARTY NEW', '2026-10-21', '2026-10-16', NULL, NULL, 90000.00, 135000.00, 0.00, 0.00, 135000.00, 0.00, 135000.00, 0.00, 135000.00, 'confirmed', 0, 0, '2026-10-16 06:17:13', '2026-10-16 06:17:13'),
-(4, 'EV-000004', 1, 3, 'kjkjjkk', '2026-10-27', '2026-10-16', 'fgh', NULL, 90000.00, 135000.00, 0.00, 0.00, 135000.00, 0.00, 135000.00, 0.00, 135000.00, 'confirmed', 0, 0, '2026-10-16 06:18:20', '2026-10-16 06:18:20'),
-(5, 'EV-000005', 2, 3, 'f', '2026-10-30', '2026-10-16', NULL, NULL, 90000.00, 135000.00, 0.00, 0.00, 135000.00, 0.00, 135000.00, 0.00, 135000.00, 'confirmed', 0, 0, '2026-10-16 06:24:37', '2026-10-16 06:24:37');
-
 -- --------------------------------------------------------
 
 --
@@ -197,15 +224,6 @@ CREATE TABLE `event_categories` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `event_categories`
---
-
-INSERT INTO `event_categories` (`id`, `name`, `description`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'Wedding', 'Weddings, Receptions and Engagements', 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(2, 'Birthday Party', 'Milestone birthdays, kids parties and celebrations', 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(3, 'Corporate Event', 'Annual general meetings, launches, gala dinners', 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00');
-
 -- --------------------------------------------------------
 
 --
@@ -220,13 +238,6 @@ CREATE TABLE `event_other_charges` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `event_other_charges`
---
-
-INSERT INTO `event_other_charges` (`id`, `event_id`, `description`, `amount`, `created_at`, `updated_at`) VALUES
-(1, 1, 'transport', 1000.00, '2026-10-16 05:46:01', '2026-10-16 05:46:01');
 
 -- --------------------------------------------------------
 
@@ -246,14 +257,6 @@ CREATE TABLE `event_services` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `event_services`
---
-
-INSERT INTO `event_services` (`id`, `event_id`, `service_id`, `description`, `qty`, `unit_price`, `total_price`, `created_at`, `updated_at`) VALUES
-(1, 1, 6, 'LED Wall & Dynamic Lighting', 1, 40000.00, 40000.00, '2026-10-16 05:46:01', '2026-10-16 05:46:01'),
-(2, 2, 1, 'Welcome Drink', 1, 15000.00, 15000.00, '2026-10-16 06:16:20', '2026-10-16 06:16:20');
-
 -- --------------------------------------------------------
 
 --
@@ -272,15 +275,6 @@ CREATE TABLE `event_sub_categories` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `event_sub_categories`
---
-
-INSERT INTO `event_sub_categories` (`id`, `event_category_id`, `name`, `description`, `cost_price`, `sell_price`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 1, 'Package 01 - Gold Wedding', 'Complete elegant wedding package with welcoming and traditional performances.', 125000.00, 180000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(2, 1, 'Package 02 - Platinum Luxury Wedding', 'Ultra luxury all-inclusive wedding package with photo/video and LED screen.', 210000.00, 320000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(3, 2, 'Package 01 - Standard Birthday', 'Fun birthday celebration package with sound, decor and drinks.', 90000.00, 135000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00');
-
 -- --------------------------------------------------------
 
 --
@@ -297,25 +291,6 @@ CREATE TABLE `event_sub_category_services` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `event_sub_category_services`
---
-
-INSERT INTO `event_sub_category_services` (`id`, `event_sub_category_id`, `service_id`, `cost_price`, `qty`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 15000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(2, 1, 2, 35000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(3, 1, 3, 25000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(4, 1, 5, 50000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(5, 2, 1, 15000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(6, 2, 2, 35000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(7, 2, 3, 25000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(8, 2, 5, 50000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(9, 2, 4, 45000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(10, 2, 6, 40000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(11, 3, 1, 15000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(12, 3, 3, 25000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(13, 3, 5, 50000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00');
-
 -- --------------------------------------------------------
 
 --
@@ -327,10 +302,12 @@ CREATE TABLE `expenses` (
   `expense_no` varchar(255) NOT NULL,
   `type` enum('direct','normal') NOT NULL,
   `category` varchar(255) DEFAULT NULL,
+  `category_id` bigint(20) UNSIGNED DEFAULT NULL,
   `description` varchar(255) NOT NULL,
   `amount` decimal(12,2) NOT NULL,
   `payment_method` varchar(255) NOT NULL DEFAULT 'cash',
   `bank_name` varchar(255) DEFAULT NULL,
+  `bank_id` bigint(20) UNSIGNED DEFAULT NULL,
   `cheque_no` varchar(255) DEFAULT NULL,
   `expense_date` date NOT NULL,
   `event_id` bigint(20) UNSIGNED DEFAULT NULL,
@@ -355,22 +332,6 @@ CREATE TABLE `expense_categories` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `expense_categories`
---
-
-INSERT INTO `expense_categories` (`id`, `name`, `description`, `status`, `created_at`, `updated_at`) VALUES
-(1, 'Office Rent', 'Office space lease and building rent', 'active', '2026-10-21 03:51:22', '2026-10-21 03:51:22'),
-(2, 'Electricity & Water', 'Monthly utilities bills', 'active', '2026-10-21 03:51:22', '2026-10-21 03:51:22'),
-(3, 'Transport & Fuel', 'Vehicle fuel and logistics', 'active', '2026-10-21 03:51:22', '2026-10-21 03:51:22'),
-(4, 'Staff Wages & Overtime', 'Operational staff daily/weekly payouts', 'active', '2026-10-21 03:51:22', '2026-10-21 03:51:22'),
-(5, 'Food & Refreshments', 'Staff tea, snacks, and meals', 'active', '2026-10-21 03:51:22', '2026-10-21 03:51:22'),
-(6, 'Stationery & Printing', 'Paper, toner, and office stationery', 'active', '2026-10-21 03:51:22', '2026-10-21 03:51:22'),
-(7, 'Equipment Maintenance', 'Repair and servicing of equipment', 'active', '2026-10-21 03:51:22', '2026-10-21 03:51:22'),
-(8, 'Advertising & Marketing', 'Social media promotions and printing ads', 'active', '2026-10-21 03:51:22', '2026-10-21 03:51:22'),
-(9, 'Internet & Phone', 'Broadband and mobile phone charges', 'active', '2026-10-21 03:51:22', '2026-10-21 03:51:22'),
-(10, 'Miscellaneous', 'General minor overhead expenses', 'active', '2026-10-21 03:51:22', '2026-10-21 03:51:22');
 
 -- --------------------------------------------------------
 
@@ -435,38 +396,6 @@ CREATE TABLE `migrations` (
   `batch` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `migrations`
---
-
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
-(1, '0001_01_01_000000_create_users_table', 1),
-(2, '0001_01_01_000001_create_cache_table', 1),
-(3, '0001_01_01_000002_create_jobs_table', 1),
-(4, '2026_10_15_060806_create_services_table', 1),
-(5, '2026_10_15_060807_create_event_categories_table', 1),
-(6, '2026_10_15_060807_create_event_sub_categories_table', 1),
-(7, '2026_10_15_060808_create_customers_table', 1),
-(8, '2026_10_15_060808_create_event_sub_category_services_table', 1),
-(9, '2026_10_15_060809_create_events_table', 1),
-(10, '2026_10_15_060810_create_event_services_table', 1),
-(11, '2026_10_15_060811_create_event_other_charges_table', 1),
-(12, '2026_10_15_060821_create_orders_table', 1),
-(13, '2026_10_15_060822_create_order_other_charges_table', 1),
-(14, '2026_10_15_060822_create_order_services_table', 1),
-(15, '2026_10_15_060822_create_payments_table', 1),
-(16, '2026_10_15_060823_create_quotations_table', 1),
-(17, '2026_10_15_060824_create_quotation_services_table', 1),
-(18, '2026_10_15_060825_create_quotation_other_charges_table', 1),
-(19, '2026_10_15_060826_create_expenses_table', 1),
-(20, '2026_10_15_060827_create_bank_transactions_table', 1),
-(21, '2026_10_16_000001_add_role_and_phone_to_users_table', 2),
-(22, '2026_10_16_000002_add_username_to_users_table', 3),
-(23, '2026_10_21_054052_add_details_to_customers_table', 4),
-(24, '2026_10_21_065903_create_banks_table', 5),
-(25, '2026_10_21_144600_create_expense_categories_table', 6),
-(26, '2026_10_21_144700_add_order_and_payment_to_expenses_table', 6);
-
 -- --------------------------------------------------------
 
 --
@@ -477,6 +406,12 @@ CREATE TABLE `orders` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `order_no` varchar(255) NOT NULL,
   `event_id` bigint(20) UNSIGNED NOT NULL,
+  `event_sub_category_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `package_name` varchar(255) DEFAULT NULL,
+  `package_cost_price` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `package_sell_price` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `additional_services_total` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `other_charges_total` decimal(12,2) NOT NULL DEFAULT 0.00,
   `customer_id` bigint(20) UNSIGNED NOT NULL,
   `order_date` date NOT NULL,
   `sub_total` decimal(12,2) NOT NULL DEFAULT 0.00,
@@ -490,13 +425,6 @@ CREATE TABLE `orders` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `orders`
---
-
-INSERT INTO `orders` (`id`, `order_no`, `event_id`, `customer_id`, `order_date`, `sub_total`, `discount`, `total_amount`, `paid_amount`, `balance`, `payment_status`, `notes`, `is_auto_created`, `created_at`, `updated_at`) VALUES
-(1, 'ORD-000001', 1, 1, '2026-10-19', 221000.00, 0.00, 221000.00, 0.00, 221000.00, 'pending', NULL, 0, '2026-10-19 01:45:11', '2026-10-19 01:45:11');
 
 -- --------------------------------------------------------
 
@@ -513,13 +441,6 @@ CREATE TABLE `order_other_charges` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `order_other_charges`
---
-
-INSERT INTO `order_other_charges` (`id`, `order_id`, `description`, `amount`, `created_at`, `updated_at`) VALUES
-(1, 1, 'transport', 1000.00, '2026-10-19 01:45:11', '2026-10-19 01:45:11');
-
 -- --------------------------------------------------------
 
 --
@@ -530,6 +451,7 @@ CREATE TABLE `order_services` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `order_id` bigint(20) UNSIGNED NOT NULL,
   `service_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `is_package_item` tinyint(1) NOT NULL DEFAULT 0,
   `description` varchar(255) NOT NULL,
   `qty` int(11) NOT NULL DEFAULT 1,
   `unit_price` decimal(12,2) NOT NULL DEFAULT 0.00,
@@ -537,14 +459,6 @@ CREATE TABLE `order_services` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `order_services`
---
-
-INSERT INTO `order_services` (`id`, `order_id`, `service_id`, `description`, `qty`, `unit_price`, `total_price`, `created_at`, `updated_at`) VALUES
-(1, 1, NULL, 'Package 01 - Gold Wedding (Base Event Package)', 1, 180000.00, 180000.00, '2026-10-19 01:45:11', '2026-10-19 01:45:11'),
-(2, 1, 6, 'LED Wall & Dynamic Lighting', 1, 40000.00, 40000.00, '2026-10-19 01:45:11', '2026-10-19 01:45:11');
 
 -- --------------------------------------------------------
 
@@ -572,8 +486,11 @@ CREATE TABLE `payments` (
   `amount` decimal(12,2) NOT NULL,
   `payment_type` enum('advance','partial','full') NOT NULL,
   `payment_method` enum('cash','cheque','bank_transfer') NOT NULL DEFAULT 'cash',
+  `reference` varchar(100) DEFAULT NULL,
+  `status` varchar(50) NOT NULL DEFAULT 'Paid',
   `cheque_no` varchar(255) DEFAULT NULL,
   `bank_name` varchar(255) DEFAULT NULL,
+  `bank_id` bigint(20) UNSIGNED DEFAULT NULL,
   `payment_date` date NOT NULL,
   `notes` text DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
@@ -591,6 +508,11 @@ CREATE TABLE `quotations` (
   `quotation_no` varchar(255) NOT NULL,
   `customer_id` bigint(20) UNSIGNED NOT NULL,
   `event_sub_category_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `package_name` varchar(255) DEFAULT NULL,
+  `package_cost_price` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `package_sell_price` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `additional_services_total` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `other_charges_total` decimal(12,2) NOT NULL DEFAULT 0.00,
   `quotation_date` date NOT NULL,
   `valid_until` date DEFAULT NULL,
   `event_name` varchar(255) DEFAULT NULL,
@@ -604,13 +526,6 @@ CREATE TABLE `quotations` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `quotations`
---
-
-INSERT INTO `quotations` (`id`, `quotation_no`, `customer_id`, `event_sub_category_id`, `quotation_date`, `valid_until`, `event_name`, `event_date`, `venue`, `sub_total`, `discount`, `total_amount`, `status`, `remarks`, `created_at`, `updated_at`) VALUES
-(1, 'QUO-000001', 2, 3, '2026-10-20', '2026-11-03', 'Birthday Party in Kandy', '2026-11-07', 'Kandy Hotel', 92000.00, 200.00, 91800.00, 'accepted', 'this is new', '2026-10-20 00:14:13', '2026-10-20 00:37:08');
 
 -- --------------------------------------------------------
 
@@ -626,13 +541,6 @@ CREATE TABLE `quotation_other_charges` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `quotation_other_charges`
---
-
-INSERT INTO `quotation_other_charges` (`id`, `quotation_id`, `description`, `amount`, `created_at`, `updated_at`) VALUES
-(1, 1, 'For Transport Products', 2000.00, '2026-10-20 00:14:13', '2026-10-20 00:14:13');
 
 -- --------------------------------------------------------
 
@@ -652,15 +560,6 @@ CREATE TABLE `quotation_services` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `quotation_services`
---
-
-INSERT INTO `quotation_services` (`id`, `quotation_id`, `service_id`, `description`, `qty`, `unit_price`, `total_price`, `created_at`, `updated_at`) VALUES
-(1, 1, 3, 'DJ & Sound System', 1, 25000.00, 25000.00, '2026-10-20 00:14:13', '2026-10-20 00:14:13'),
-(2, 1, 5, 'Floral Stage Decoration', 1, 50000.00, 50000.00, '2026-10-20 00:14:13', '2026-10-20 00:14:13'),
-(3, 1, 1, 'Welcome Drink', 1, 15000.00, 15000.00, '2026-10-20 00:14:13', '2026-10-20 00:14:13');
-
 -- --------------------------------------------------------
 
 --
@@ -677,19 +576,6 @@ CREATE TABLE `services` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `services`
---
-
-INSERT INTO `services` (`id`, `name`, `description`, `cost_price`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'Welcome Drink', 'Fresh fruit juices and welcome mocktails (100 Pax)', 15000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(2, 'Traditional Dance Crew', '6-member traditional dancing troupe for grand entrance', 35000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(3, 'DJ & Sound System', 'Pro sound equipment, microphones and experienced DJ', 25000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(4, 'Photography & Videography', '2 photographers, 1 videographer with drone shots', 45000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(5, 'Floral Stage Decoration', 'Fresh flowers backdrop, entrance arch and table centerpieces', 50000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(6, 'LED Wall & Dynamic Lighting', '12x8 LED backdrop screen with moving heads lighting', 40000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00'),
-(7, 'Buffet Catering Service', '3-course buffet with desserts and beverage counter (100 Pax)', 120000.00, 1, '2026-10-16 03:59:00', '2026-10-16 03:59:00');
-
 -- --------------------------------------------------------
 
 --
@@ -704,18 +590,6 @@ CREATE TABLE `sessions` (
   `payload` longtext NOT NULL,
   `last_activity` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `sessions`
---
-
-INSERT INTO `sessions` (`id`, `user_id`, `ip_address`, `user_agent`, `payload`, `last_activity`) VALUES
-('4QzJzZx7tfFIWl0nyHgaJ5H3pMDwzgM7YMMleTcn', NULL, '127.0.0.1', 'curl/8.21.0', 'YTo0OntzOjY6Il90b2tlbiI7czo0MDoidUtiTEhQR2FudjhKVDFzS1pwd3dMQmdLb0g4SnA5dlp5TGZxc2hxaSI7czozOiJ1cmwiO2E6MTp7czo4OiJpbnRlbmRlZCI7czozODoiaHR0cDovLzEyNy4wLjAuMTo4MDAwL3JlcG9ydHMvZXhwZW5zZXMiO31zOjk6Il9wcmV2aW91cyI7YToyOntzOjM6InVybCI7czozODoiaHR0cDovLzEyNy4wLjAuMTo4MDAwL3JlcG9ydHMvZXhwZW5zZXMiO3M6NToicm91dGUiO3M6MTY6InJlcG9ydHMuZXhwZW5zZXMiO31zOjY6Il9mbGFzaCI7YToyOntzOjM6Im9sZCI7YTowOnt9czozOiJuZXciO2E6MDp7fX19', 1792574505),
-('7KGxKPMg9lH4UBcBcDvj39dvfmA0zEVpfSIj8rrk', 1, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:158.0) Gecko/20100101 Firefox/158.0', 'YTo4OntzOjY6Il90b2tlbiI7czo0MDoiUUZHZVV4UE9pYTg4VFNWekY0emdvM25QaE4wVWFrMU1rZVp3TGlKYSI7czo2OiJfZmxhc2giO2E6Mjp7czozOiJuZXciO2E6MDp7fXM6Mzoib2xkIjthOjA6e319czo5OiJfcHJldmlvdXMiO2E6Mjp7czozOiJ1cmwiO3M6MTE5OiJodHRwOi8vMTI3LjAuMC4xOjgwMDAvYXBpL2NhbGVuZGFyL2V2ZW50cz9lbmQ9MjAyNi0xMS0wOFQwMCUzQTAwJTNBMDAlMkIwNSUzQTMwJnN0YXJ0PTIwMjYtMDktMjdUMDAlM0EwMCUzQTAwJTJCMDUlM0EzMCI7czo1OiJyb3V0ZSI7czoxOToiYXBpLmNhbGVuZGFyLmV2ZW50cyI7fXM6NTA6ImxvZ2luX3dlYl81OWJhMzZhZGRjMmIyZjk0MDE1ODBmMDE0YzdmNThlYTRlMzA5ODlkIjtpOjE7czoxNzoicGFzc3dvcmRfaGFzaF93ZWIiO3M6NjQ6ImJjZjYyNGY2YzhjZmQwNjM5YWMzNGJlZmM1MzNlYTc5NmQ5YjQ0NjkxZjdiZGUwNWU1NjIwNzI4NjU0NDZkYTUiO3M6ODoibG9naW5faXAiO3M6OToiMTI3LjAuMC4xIjtzOjE2OiJsb2dpbl91c2VyX2FnZW50IjtzOjgwOiJNb3ppbGxhLzUuMCAoV2luZG93cyBOVCAxMC4wOyBXaW42NDsgeDY0OyBydjoxNTguMCkgR2Vja28vMjAxMDAxMDEgRmlyZWZveC8xNTguMCI7czoxODoibGFzdF9hY3Rpdml0eV90aW1lIjtpOjE3OTI2NDA0ODI7fQ==', 1792640482),
-('enLPpN96MO2tQeBEUP3XU0ux03t2L9ZTL4RlTiP2', 1, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:158.0) Gecko/20100101 Firefox/158.0', 'YTo0OntzOjY6Il90b2tlbiI7czo0MDoiTzNtTXBCNnR6U2daYXdDdGNoQzNtY2xiTFZaS29PamhMaGVDVXJYTCI7czo1MDoibG9naW5fd2ViXzU5YmEzNmFkZGMyYjJmOTQwMTU4MGYwMTRjN2Y1OGVhNGUzMDk4OWQiO2k6MTtzOjk6Il9wcmV2aW91cyI7YToyOntzOjM6InVybCI7czozOToiaHR0cDovLzEyNy4wLjAuMTo4MDAwL2JhbmstdHJhbnNhY3Rpb25zIjtzOjU6InJvdXRlIjtzOjIzOiJiYW5rLXRyYW5zYWN0aW9ucy5pbmRleCI7fXM6NjoiX2ZsYXNoIjthOjI6e3M6Mzoib2xkIjthOjA6e31zOjM6Im5ldyI7YTowOnt9fX0=', 1792583222),
-('nUomZF5S5iWLKX7KU0uy05qWqsJECD4ChF4ZDe8m', 1, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:158.0) Gecko/20100101 Firefox/158.0', 'YTo1OntzOjY6Il90b2tlbiI7czo0MDoiM3dVQnY1NTZqQ1o0QThNcG5jUjlmRGRmSmRGMmRFMllpaVlQMGN2NCI7czo1MDoibG9naW5fd2ViXzU5YmEzNmFkZGMyYjJmOTQwMTU4MGYwMTRjN2Y1OGVhNGUzMDk4OWQiO2k6MTtzOjE4OiJsYXN0X2FjdGl2aXR5X3RpbWUiO2k6MTc5MjY1MzgxNjtzOjk6Il9wcmV2aW91cyI7YToyOntzOjM6InVybCI7czoxMTk6Imh0dHA6Ly8xMjcuMC4wLjE6ODAwMC9hcGkvY2FsZW5kYXIvZXZlbnRzP2VuZD0yMDI2LTExLTA4VDAwJTNBMDAlM0EwMCUyQjA1JTNBMzAmc3RhcnQ9MjAyNi0wOS0yN1QwMCUzQTAwJTNBMDAlMkIwNSUzQTMwIjtzOjU6InJvdXRlIjtzOjE5OiJhcGkuY2FsZW5kYXIuZXZlbnRzIjt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319fQ==', 1792653817),
-('o66NhGPX1b5zK0o74EX2e6mlatwsNZdbHNS9uoSa', 1, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:158.0) Gecko/20100101 Firefox/158.0', 'YTo1OntzOjY6Il90b2tlbiI7czo0MDoiMkhhOUJRY2E1VmljODA2ZXpObzJ5bUpnWU1jY1c0TWUxQzVreFJzdiI7czo1MDoibG9naW5fd2ViXzU5YmEzNmFkZGMyYjJmOTQwMTU4MGYwMTRjN2Y1OGVhNGUzMDk4OWQiO2k6MTtzOjE4OiJsYXN0X2FjdGl2aXR5X3RpbWUiO2k6MTc5MjY2ODI2ODtzOjk6Il9wcmV2aW91cyI7YToyOntzOjM6InVybCI7czoxMTk6Imh0dHA6Ly8xMjcuMC4wLjE6ODAwMC9hcGkvY2FsZW5kYXIvZXZlbnRzP2VuZD0yMDI2LTExLTA4VDAwJTNBMDAlM0EwMCUyQjA1JTNBMzAmc3RhcnQ9MjAyNi0wOS0yN1QwMCUzQTAwJTNBMDAlMkIwNSUzQTMwIjtzOjU6InJvdXRlIjtzOjE5OiJhcGkuY2FsZW5kYXIuZXZlbnRzIjt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319fQ==', 1792668268),
-('ZrZLs8XL3lnmffwROVaYroZR9hnbAZ0yoYqTo57G', NULL, '127.0.0.1', 'curl/8.21.0', 'YTo0OntzOjY6Il90b2tlbiI7czo0MDoiSnplYXlHbjNIa09TenRpUE5ta1Bnd3RvM2F6WTQ1RG9jVENmczl2RSI7czozOiJ1cmwiO2E6MTp7czo4OiJpbnRlbmRlZCI7czozMDoiaHR0cDovLzEyNy4wLjAuMTo4MDAwL2V4cGVuc2VzIjt9czo5OiJfcHJldmlvdXMiO2E6Mjp7czozOiJ1cmwiO3M6MzA6Imh0dHA6Ly8xMjcuMC4wLjE6ODAwMC9leHBlbnNlcyI7czo1OiJyb3V0ZSI7czoxNDoiZXhwZW5zZXMuaW5kZXgiO31zOjY6Il9mbGFzaCI7YToyOntzOjM6Im9sZCI7YTowOnt9czozOiJuZXciO2E6MDp7fX19', 1792574474);
 
 -- --------------------------------------------------------
 
@@ -776,6 +650,26 @@ ALTER TABLE `cache`
 ALTER TABLE `cache_locks`
   ADD PRIMARY KEY (`key`),
   ADD KEY `cache_locks_expiration_index` (`expiration`);
+
+--
+-- Indexes for table `cash_transactions`
+--
+ALTER TABLE `cash_transactions`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `cash_transactions_transaction_no_unique` (`transaction_no`);
+
+--
+-- Indexes for table `cheques`
+--
+ALTER TABLE `cheques`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `cheques_customer_id_foreign` (`customer_id`),
+  ADD KEY `cheques_order_id_foreign` (`order_id`),
+  ADD KEY `cheques_payment_id_foreign` (`payment_id`),
+  ADD KEY `cheques_expense_id_foreign` (`expense_id`),
+  ADD KEY `cheques_bank_id_foreign` (`bank_id`),
+  ADD KEY `cheques_type_status_index` (`type`,`status`),
+  ADD KEY `cheques_cheque_number_index` (`cheque_number`);
 
 --
 -- Indexes for table `customers`
@@ -963,55 +857,67 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `banks`
 --
 ALTER TABLE `banks`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `bank_transactions`
 --
 ALTER TABLE `bank_transactions`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `cash_transactions`
+--
+ALTER TABLE `cash_transactions`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `cheques`
+--
+ALTER TABLE `cheques`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `customers`
 --
 ALTER TABLE `customers`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `events`
 --
 ALTER TABLE `events`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `event_categories`
 --
 ALTER TABLE `event_categories`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `event_other_charges`
 --
 ALTER TABLE `event_other_charges`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `event_services`
 --
 ALTER TABLE `event_services`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `event_sub_categories`
 --
 ALTER TABLE `event_sub_categories`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `event_sub_category_services`
 --
 ALTER TABLE `event_sub_category_services`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `expenses`
@@ -1023,7 +929,7 @@ ALTER TABLE `expenses`
 -- AUTO_INCREMENT for table `expense_categories`
 --
 ALTER TABLE `expense_categories`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `failed_jobs`
@@ -1041,25 +947,25 @@ ALTER TABLE `jobs`
 -- AUTO_INCREMENT for table `migrations`
 --
 ALTER TABLE `migrations`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `order_other_charges`
 --
 ALTER TABLE `order_other_charges`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `order_services`
 --
 ALTER TABLE `order_services`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `payments`
@@ -1071,25 +977,25 @@ ALTER TABLE `payments`
 -- AUTO_INCREMENT for table `quotations`
 --
 ALTER TABLE `quotations`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `quotation_other_charges`
 --
 ALTER TABLE `quotation_other_charges`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `quotation_services`
 --
 ALTER TABLE `quotation_services`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `services`
 --
 ALTER TABLE `services`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -1100,6 +1006,16 @@ ALTER TABLE `users`
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `cheques`
+--
+ALTER TABLE `cheques`
+  ADD CONSTRAINT `cheques_bank_id_foreign` FOREIGN KEY (`bank_id`) REFERENCES `banks` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `cheques_customer_id_foreign` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `cheques_expense_id_foreign` FOREIGN KEY (`expense_id`) REFERENCES `expenses` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `cheques_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `cheques_payment_id_foreign` FOREIGN KEY (`payment_id`) REFERENCES `payments` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `events`

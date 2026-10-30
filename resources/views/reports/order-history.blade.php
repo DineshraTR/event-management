@@ -15,10 +15,14 @@
     <div class="card-body p-3">
         <form method="GET" class="row g-2 align-items-end">
             <div class="col-12 col-sm-6 col-lg-3">
+                <label class="form-label" for="search">Quick Search</label>
+                <input class="form-control" type="text" id="search" name="search" value="{{ $search }}" placeholder="Order #, Customer, Event...">
+            </div>
+            <div class="col-12 col-sm-6 col-lg-2">
                 <label class="form-label" for="date_from">From Date</label>
                 <input class="form-control" type="date" id="date_from" name="date_from" value="{{ $dateFrom }}">
             </div>
-            <div class="col-12 col-sm-6 col-lg-3">
+            <div class="col-12 col-sm-6 col-lg-2">
                 <label class="form-label" for="date_to">To Date</label>
                 <input class="form-control" type="date" id="date_to" name="date_to" value="{{ $dateTo }}">
             </div>
@@ -44,7 +48,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-funnel-fill me-1"></i> Filter
                 </button>
-                @if(request()->hasAny(['date_from', 'date_to', 'customer_id', 'status']))
+                @if(request()->hasAny(['search', 'date_from', 'date_to', 'customer_id', 'status']))
                     <a href="{{ route('reports.order-history') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
                     </a>

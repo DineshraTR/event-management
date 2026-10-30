@@ -7,9 +7,30 @@ use Illuminate\Http\Request;
 
 class ServiceController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $services = Service::latest()->paginate(25)->withQueryString();
+        $search = $request->input('search');
+        $status = $request->input('status');
+
+        $query = Service::query();
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('cost_price', 'like', "%{$search}%");
+            });
+        }
+
+        if ($status !== null && $status !== '' && $status !== 'all') {
+            if ($status === 'active' || $status === '1') {
+                $query->where('is_active', true);
+            } elseif ($status === 'inactive' || $status === '0') {
+                $query->where('is_active', false);
+            }
+        }
+
+        $services = $query->latest()->paginate(25)->withQueryString();
         return view('services.index', compact('services'));
     }
 

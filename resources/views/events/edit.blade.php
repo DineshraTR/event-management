@@ -351,7 +351,7 @@
                             <select name="event_sub_category_id" id="subCategoryId" class="form-select" required onchange="onSubCategoryChange(this.value)">
                                 <option value="">-- Choose Package --</option>
                                 @foreach($subCategories as $sub)
-                                    <option value="{{ $sub->id }}" {{ $currentSubCategoryId == $sub->id ? 'selected' : '' }}>
+                                    <option value="{{ $sub->id }}" data-sell-price="{{ $sub->sell_price }}" {{ $currentSubCategoryId == $sub->id ? 'selected' : '' }}>
                                         {{ $sub->name }} (Sell: Rs. {{ number_format($sub->sell_price, 2) }})
                                     </option>
                                 @endforeach
@@ -787,6 +787,7 @@
                 data.forEach(sub => {
                     const opt = document.createElement('option');
                     opt.value = sub.id;
+                    opt.setAttribute('data-sell-price', sub.sell_price);
                     opt.text = `${sub.name} (Sell: Rs. ${parseFloat(sub.sell_price).toLocaleString()})`;
                     subSelect.appendChild(opt);
                 });
@@ -804,10 +805,23 @@
             return;
         }
 
+        const subSelect = document.getElementById('subCategoryId');
+        const selectedOpt = subSelect ? subSelect.options[subSelect.selectedIndex] : null;
+        if (selectedOpt && selectedOpt.getAttribute('data-sell-price')) {
+            const immediatePrice = parseFloat(selectedOpt.getAttribute('data-sell-price')) || 0;
+            document.getElementById('packageSellPrice').value = immediatePrice.toFixed(2);
+            calculateEventTotals();
+        }
+
         fetch(`/api/sub-category/${subCategoryId}`)
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) throw new Error('Network error');
+                return res.json();
+            })
             .then(data => {
-                document.getElementById('packageSellPrice').value = data.sell_price;
+                if (data.sell_price !== undefined && data.sell_price !== null) {
+                    document.getElementById('packageSellPrice').value = parseFloat(data.sell_price).toFixed(2);
+                }
 
                 const pkgBox = document.getElementById('packageServicesBox');
                 const pkgList = document.getElementById('packageServicesList');
@@ -828,6 +842,10 @@
                     pkgBox.classList.add('d-none');
                 }
 
+                calculateEventTotals();
+            })
+            .catch(err => {
+                console.error('Error fetching package details:', err);
                 calculateEventTotals();
             });
     }

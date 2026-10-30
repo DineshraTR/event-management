@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\Customer;
 use App\Models\Bank;
 use App\Models\BankTransaction;
+use App\Models\CashTransaction;
 use App\Models\Cheque;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -129,28 +130,45 @@ class ExpenseController extends Controller
                     'notes' => $validated['notes'] ?: "Cheque issued for {$validated['type']} expense: {$validated['description']}",
                 ]);
             } else {
-                // Cash or Bank Transfer: record in bank transactions ledger
-                $accountType = $validated['payment_method'] === 'cash' ? 'cash' : ($validated['bank_name'] ?? 'bank');
-                $targetBank = null;
-                if ($validated['payment_method'] === 'bank_transfer' && !empty($validated['bank_name'])) {
-                    $targetBank = Bank::where('bank_name', 'like', "%{$validated['bank_name']}%")->first();
-                    if ($targetBank) {
-                        $targetBank->decrement('current_balance', $validated['amount']);
+                // Cash or Bank Transfer: record in respective table
+                if ($validated['payment_method'] === 'cash') {
+                    CashTransaction::create([
+                        'type' => 'expense',
+                        'amount' => $validated['amount'],
+                        'description' => ($validated['type'] === 'direct' ? 'Direct Event Expense: ' : 'Expense: ') . $validated['description'],
+                        'reference_no' => $expense->expense_no,
+                        'order_id' => $validated['order_id'] ?? null,
+                        'expense_id' => $expense->id,
+                        'transaction_date' => $validated['expense_date'],
+                        'notes' => $validated['notes'] ?? null,
+                    ]);
+                } else {
+                    $accountType = $validated['bank_name'] ?? 'bank';
+                    $targetBank = null;
+                    if ($validated['payment_method'] === 'bank_transfer' && !empty($validated['bank_name'])) {
+                        $targetBank = Bank::where('bank_name', 'like', "%{$validated['bank_name']}%")->first();
+                        if ($targetBank) {
+                            $targetBank->decrement('current_balance', $validated['amount']);
+                        }
                     }
-                }
 
-                BankTransaction::create([
-                    'type' => 'expense',
-                    'transaction_method' => $validated['payment_method'],
-                    'account_type' => $accountType,
-                    'amount' => $validated['amount'],
-                    'description' => ($validated['type'] === 'direct' ? 'Direct Event Expense: ' : 'Expense: ') . $validated['description'],
-                    'reference_no' => $expense->expense_no,
-                    'cheque_no' => null,
-                    'bank_name' => $validated['bank_name'] ?? null,
-                    'transaction_date' => $validated['expense_date'],
-                    'running_balance' => $targetBank?->current_balance ?? 0,
-                ]);
+                    BankTransaction::create([
+                        'type' => 'expense',
+                        'transaction_method' => $validated['payment_method'],
+                        'account_type' => $accountType,
+                        'bank_id' => $targetBank?->id,
+                        'order_id' => $validated['order_id'] ?? null,
+                        'expense_id' => $expense->id,
+                        'amount' => $validated['amount'],
+                        'description' => ($validated['type'] === 'direct' ? 'Direct Event Expense: ' : 'Expense: ') . $validated['description'],
+                        'reference_no' => $expense->expense_no,
+                        'cheque_no' => null,
+                        'bank_name' => $validated['bank_name'] ?? null,
+                        'transaction_date' => $validated['expense_date'],
+                        'running_balance' => $targetBank?->current_balance ?? 0,
+                        'notes' => $validated['notes'] ?? null,
+                    ]);
+                }
             }
         });
 

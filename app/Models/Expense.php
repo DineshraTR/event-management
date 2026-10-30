@@ -9,8 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Expense extends Model
 {
     protected $fillable = [
-        'expense_no', 'type', 'category', 'description',
-        'amount', 'payment_method', 'bank_name', 'cheque_no',
+        'expense_no', 'type', 'category', 'category_id', 'description',
+        'amount', 'payment_method', 'bank_name', 'bank_id', 'cheque_no',
         'expense_date', 'event_id', 'order_id', 'reference', 'notes'
     ];
 
@@ -39,6 +39,16 @@ class Expense extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function bank(): BelongsTo
+    {
+        return $this->belongsTo(Bank::class);
+    }
+
+    public function expenseCategory(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseCategory::class, 'category_id');
     }
 
     public function cheque(): HasOne

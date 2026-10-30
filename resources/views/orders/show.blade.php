@@ -102,6 +102,9 @@
             <a href="{{ route('orders.index') }}" class="btn btn-outline-secondary shadow-sm">
                 <i class="bi bi-arrow-left me-1"></i> Back to Orders
             </a>
+            <a href="{{ route('orders.print', $order) }}" target="_blank" class="btn btn-outline-dark shadow-sm">
+                <i class="bi bi-printer me-1"></i> Print Invoice
+            </a>
             <a href="{{ route('orders.edit', $order) }}" class="btn btn-primary shadow-sm">
                 <i class="bi bi-pencil me-1"></i> Edit Order
             </a>
@@ -150,7 +153,13 @@
                             <div class="fw-semibold text-dark mt-1">
                                 <i class="bi bi-box-seam text-secondary me-1"></i>
                                 {{ $order->event->subCategory?->name ?? 'Custom Package' }}
+                                @if($order->event->subCategory?->category)
+                                    <span class="badge bg-light text-secondary border ms-1" style="font-size: 11px;">{{ $order->event->subCategory->category->name }}</span>
+                                @endif
                             </div>
+                            @if($order->event->package_sell_price > 0)
+                                <small class="text-primary fw-bold" style="font-size: 11.5px;">Base Price: Rs. {{ number_format($order->event->package_sell_price, 2) }}</small>
+                            @endif
                         </div>
                         <div class="col-sm-6">
                             <small class="text-muted d-block" style="font-size: 11.5px;">VENUE / LOCATION</small>
@@ -162,6 +171,28 @@
                                 @endif
                             </div>
                         </div>
+
+                        <!-- Included Services in Selected Package -->
+                        @if($order->event->subCategory?->subCategoryServices && $order->event->subCategory->subCategoryServices->isNotEmpty())
+                            <div class="col-12 mt-3 pt-3 border-top">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <small class="fw-bold text-dark text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
+                                        <i class="bi bi-check-circle-fill text-success me-1"></i> Included in Selected Package:
+                                    </small>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 10.5px;">
+                                        {{ $order->event->subCategory->subCategoryServices->count() }} Services
+                                    </span>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2">
+                                    @foreach($order->event->subCategory->subCategoryServices as $ps)
+                                        <span class="badge bg-light text-dark border px-2.5 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5" style="font-size: 11.5px;">
+                                            <i class="bi bi-check2-circle text-success"></i>
+                                            <span>{{ $ps->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $ps->qty }}</strong></span>
+                                        </span>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -287,7 +318,8 @@
                             <th class="py-3">Date</th>
                             <th class="py-3">Payment Method</th>
                             <th class="py-3">Reference / Notes</th>
-                            <th class="py-3 text-end pe-4" style="width: 170px;">Amount Paid</th>
+                            <th class="py-3 text-end" style="width: 150px;">Amount Paid</th>
+                            <th class="py-3 text-center pe-4" style="width: 70px;">Receipt</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -315,13 +347,18 @@
                                         {{ $payment->reference_no ?: ($payment->notes ?: '—') }}
                                     </span>
                                 </td>
-                                <td class="text-end pe-4 fw-bold text-success fs-6">
+                                <td class="text-end fw-bold text-success fs-6">
                                     Rs. {{ number_format($payment->amount, 2) }}
+                                </td>
+                                <td class="text-center pe-4">
+                                    <a href="{{ route('payments.print', $payment) }}" target="_blank" class="btn btn-sm btn-light border px-2 py-1" title="Print Receipt">
+                                        <i class="bi bi-printer text-primary"></i>
+                                    </a>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4 small">
+                                <td colspan="6" class="text-center text-muted py-4 small">
                                     <i class="bi bi-cash-stack fs-2 d-block mb-1 text-secondary opacity-50"></i>
                                     <span>No payments recorded for this order yet.</span>
                                 </td>
@@ -332,9 +369,10 @@
                         <tfoot class="bg-light">
                             <tr>
                                 <td colspan="4" class="text-end fw-bold text-secondary">Total Settled Payments:</td>
-                                <td class="text-end pe-4 fw-bold text-success fs-6">
+                                <td class="text-end fw-bold text-success fs-6">
                                     Rs. {{ number_format($order->paid_amount, 2) }}
                                 </td>
+                                <td></td>
                             </tr>
                         </tfoot>
                     @endif
