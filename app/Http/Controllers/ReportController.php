@@ -479,7 +479,7 @@ class ReportController extends Controller
         $activeTab = $request->get('tab', 'direct'); // 'direct' or 'normal'
 
         // Base Query
-        $baseQuery = Expense::with(['event', 'order.customer'])
+        $baseQuery = Expense::with(['event', 'order.customer', 'cheque'])
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('expense_no', 'like', "%{$search}%")
@@ -524,12 +524,16 @@ class ReportController extends Controller
         // Filter Dropdowns
         $categories = Expense::whereNotNull('category')->where('category', '!=', '')->distinct()->pluck('category');
         $customers = Customer::orderBy('name')->get(['id', 'name', 'phone']);
+        $banks = Bank::where('is_active', true)->orderBy('bank_name')->get();
+        $orders = Order::with(['customer', 'event'])->latest('id')->get();
 
         return view('reports.expenses', compact(
             'directExpenses',
             'normalExpenses',
             'categories',
             'customers',
+            'banks',
+            'orders',
             'search',
             'category',
             'customerId',

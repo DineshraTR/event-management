@@ -330,9 +330,11 @@ class OrderController extends Controller
             'event.subCategory.subCategoryServices.service',
             'services.service',
             'otherCharges',
-            'payments',
+            'payments.bank',
         ]);
 
-        return view('orders.print', compact('order'));
+        $primaryBank = \App\Models\Bank::where('is_active', true)->first();
+
+        return view('orders.print', compact('order', 'primaryBank'));
     }
 }

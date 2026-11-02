@@ -82,7 +82,7 @@ class EventSubCategoryController extends Controller
 
         $subCategory->update(['cost_price' => $totalCost]);
 
-        return redirect()->route('event-sub-categories.index')
+        return redirect()->route('event-sub-categories.create')
             ->with('success', 'Sub-category created successfully.');
     }
 

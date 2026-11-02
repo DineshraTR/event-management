@@ -56,7 +56,7 @@ class ExpenseCategoryController extends Controller
 
         ExpenseCategory::create($validated);
 
-        return redirect()->route('expense-categories.index')
+        return redirect()->route('expense-categories.create')
             ->with('success', 'Expense category created successfully.');
     }
 

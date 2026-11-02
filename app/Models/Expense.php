@@ -55,4 +55,14 @@ class Expense extends Model
     {
         return $this->hasOne(Cheque::class);
     }
+
+    public function cashTransaction(): HasOne
+    {
+        return $this->hasOne(CashTransaction::class);
+    }
+
+    public function bankTransaction(): HasOne
+    {
+        return $this->hasOne(BankTransaction::class);
+    }
 }

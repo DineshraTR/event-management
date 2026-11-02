@@ -20,44 +20,69 @@ class ChequeController extends Controller
      */
     public function index(Request $request)
     {
-        $activeTab = $request->get('tab', 'in');
+        $activeTab = $request->get('tab');
+        if (!$activeTab) {
+            $activeTab = Cheque::where('type', 'IN')->exists() ? 'in' : (Cheque::where('type', 'OUT')->exists() ? 'out' : 'in');
+        }
         $search = $request->get('search');
         $statusFilter = $request->get('status');
         $fromDate = $request->get('from_date');
         $toDate = $request->get('to_date');
         $bankFilter = $request->get('bank_id');
 
-        // KPI Summary Metrics Calculation
+        // Query Base with Scope Filters (Date, Bank) for KPIs
+        $baseInQuery = Cheque::where('type', 'IN')
+            ->when($fromDate, fn($q) => $q->where('received_or_issued_date', '>=', $fromDate))
+            ->when($toDate, fn($q) => $q->where('received_or_issued_date', '<=', $toDate))
+            ->when($bankFilter, fn($q) => $q->where('bank_id', $bankFilter));
+
+        $baseOutQuery = Cheque::where('type', 'OUT')
+            ->when($fromDate, fn($q) => $q->where('received_or_issued_date', '>=', $fromDate))
+            ->when($toDate, fn($q) => $q->where('received_or_issued_date', '<=', $toDate))
+            ->when($bankFilter, fn($q) => $q->where('bank_id', $bankFilter));
+
         // 1. Cheque IN KPIs
         $kpiInHand = [
-            'cnt' => Cheque::where('type', 'IN')->where('status', 'In Hand')->count(),
-            'total' => (float) Cheque::where('type', 'IN')->where('status', 'In Hand')->sum('amount'),
+            'cnt' => (clone $baseInQuery)->where('status', 'In Hand')->count(),
+            'total' => (float) (clone $baseInQuery)->where('status', 'In Hand')->sum('amount'),
         ];
         $kpiDeposited = [
-            'cnt' => Cheque::where('type', 'IN')->where('status', 'Deposited')->count(),
-            'total' => (float) Cheque::where('type', 'IN')->where('status', 'Deposited')->sum('amount'),
+            'cnt' => (clone $baseInQuery)->where('status', 'Deposited')->count(),
+            'total' => (float) (clone $baseInQuery)->where('status', 'Deposited')->sum('amount'),
         ];
         $kpiRealizedIn = [
-            'cnt' => Cheque::where('type', 'IN')->where('status', 'Realized')->count(),
-            'total' => (float) Cheque::where('type', 'IN')->where('status', 'Realized')->sum('amount'),
+            'cnt' => (clone $baseInQuery)->where('status', 'Realized')->count(),
+            'total' => (float) (clone $baseInQuery)->where('status', 'Realized')->sum('amount'),
         ];
         $kpiReturnedIn = [
-            'cnt' => Cheque::where('type', 'IN')->where('status', 'Returned')->count(),
-            'total' => (float) Cheque::where('type', 'IN')->where('status', 'Returned')->sum('amount'),
+            'cnt' => (clone $baseInQuery)->where('status', 'Returned')->count(),
+            'total' => (float) (clone $baseInQuery)->where('status', 'Returned')->sum('amount'),
+        ];
+        $kpiTotalIn = [
+            'cnt' => (clone $baseInQuery)->count(),
+            'total' => (float) (clone $baseInQuery)->sum('amount'),
         ];
 
         // 2. Cheque OUT KPIs
         $kpiIssuedOut = [
-            'cnt' => Cheque::where('type', 'OUT')->where('status', 'Issued')->count(),
-            'total' => (float) Cheque::where('type', 'OUT')->where('status', 'Issued')->sum('amount'),
+            'cnt' => (clone $baseOutQuery)->where('status', 'Issued')->count(),
+            'total' => (float) (clone $baseOutQuery)->where('status', 'Issued')->sum('amount'),
         ];
         $kpiRealizedOut = [
-            'cnt' => Cheque::where('type', 'OUT')->where('status', 'Realized')->count(),
-            'total' => (float) Cheque::where('type', 'OUT')->where('status', 'Realized')->sum('amount'),
+            'cnt' => (clone $baseOutQuery)->where('status', 'Realized')->count(),
+            'total' => (float) (clone $baseOutQuery)->where('status', 'Realized')->sum('amount'),
         ];
         $kpiReturnedOut = [
-            'cnt' => Cheque::where('type', 'OUT')->where('status', 'Returned')->count(),
-            'total' => (float) Cheque::where('type', 'OUT')->where('status', 'Returned')->sum('amount'),
+            'cnt' => (clone $baseOutQuery)->where('status', 'Returned')->count(),
+            'total' => (float) (clone $baseOutQuery)->where('status', 'Returned')->sum('amount'),
+        ];
+        $kpiCancelledOut = [
+            'cnt' => (clone $baseOutQuery)->where('status', 'Cancelled')->count(),
+            'total' => (float) (clone $baseOutQuery)->where('status', 'Cancelled')->sum('amount'),
+        ];
+        $kpiTotalOut = [
+            'cnt' => (clone $baseOutQuery)->count(),
+            'total' => (float) (clone $baseOutQuery)->sum('amount'),
         ];
 
         // Query Builder for Current Tab
@@ -119,9 +144,12 @@ class ChequeController extends Controller
             'kpiDeposited',
             'kpiRealizedIn',
             'kpiReturnedIn',
+            'kpiTotalIn',
             'kpiIssuedOut',
             'kpiRealizedOut',
             'kpiReturnedOut',
+            'kpiCancelledOut',
+            'kpiTotalOut',
             'banks',
             'customers',
             'orders',

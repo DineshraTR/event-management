@@ -43,8 +43,17 @@ class AuthController extends Controller
             ]);
         }
 
-        $loginInput = $request->input('username');
+        $loginInput = trim((string) $request->input('username'));
         $field = filter_var($loginInput, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+
+        // Check if user exists and is deactivated before credential verification
+        $existingUser = \App\Models\User::where($field, $loginInput)->first();
+        if ($existingUser && !$existingUser->is_active) {
+            RateLimiter::hit($throttleKey, 60);
+            throw ValidationException::withMessages([
+                'username' => 'Your account has been deactivated. Please contact an administrator.',
+            ]);
+        }
 
         $credentials = [
             $field => $loginInput,

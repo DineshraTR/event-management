@@ -243,9 +243,9 @@
                         <!-- Receipt Details -->
                         <td class="ps-4">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="badge bg-light text-dark border font-monospace px-2 py-0.5" style="font-size: 11px; font-weight: 700;">
-                                    {{ $payment->payment_no }}
-                                </span>
+                                <a href="{{ route('payments.print', $payment) }}" target="_blank" class="badge bg-light text-dark border font-monospace px-2 py-0.5 text-decoration-none hover-primary shadow-xs" style="font-size: 11px; font-weight: 700;" title="View / Print Receipt in new tab">
+                                    <i class="bi bi-receipt me-1 text-primary"></i>{{ $payment->payment_no }}
+                                </a>
                             </div>
                             <div class="fw-semibold text-dark mt-1" style="font-size: 12.5px;">
                                 <i class="bi bi-calendar-event me-1 text-secondary"></i>
@@ -355,7 +355,7 @@
                         <!-- Actions -->
                         <td class="text-end pe-4 text-nowrap">
                             <div class="d-inline-grid justify-content-end" style="display: inline-grid; grid-template-columns: repeat(2, 70px); gap: 4px;">
-                                <a href="{{ route('payments.show', $payment) }}" class="btn-action btn-action-view" style="width: 70px; height: 28px;" title="View Receipt">
+                                <a href="{{ route('payments.print', $payment) }}" target="_blank" class="btn-action btn-action-view" style="width: 70px; height: 28px;" title="View & Print Payment Receipt in New Tab">
                                     <i class="bi bi-eye"></i> <span>View</span>
                                 </a>
                                 <form method="POST" action="{{ route('payments.destroy', $payment) }}" class="m-0 p-0" style="width: 70px;" onsubmit="return confirm('Are you sure you want to delete this payment record? This will recalculate the order balance.');">

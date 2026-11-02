@@ -2259,11 +2259,17 @@
         // CSRF setup for AJAX
         const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
 
-        // Auto-dismiss alerts
+        // Auto-dismiss temporary flash alerts (do not dismiss modal alerts or permanent messages)
         setTimeout(() => {
-            document.querySelectorAll('.alert').forEach(alert => {
-                const bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
+            document.querySelectorAll('.alert.alert-dismissible:not(.alert-permanent):not(.modal .alert):not(#categoryModalAlert):not(#quickCustomerAlert):not(#quickBankModalAlert)').forEach(alert => {
+                try {
+                    const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+                    if (bsAlert) {
+                        bsAlert.close();
+                    }
+                } catch (e) {
+                    // Ignore if already disposed
+                }
             });
         }, 5000);
 

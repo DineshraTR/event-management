@@ -138,12 +138,19 @@ class CustomerController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'phone' => 'nullable|string|max:20',
+            'phone' => 'nullable|string|max:50',
             'email' => 'nullable|email|max:255',
+            'company_name' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:100',
+            'nic' => 'nullable|string|max:50',
         ]);
         $validated['is_active'] = true;
         $customer = Customer::create($validated);
-        return response()->json(['success' => true, 'customer' => $customer]);
+        return response()->json([
+            'success' => true,
+            'customer' => $customer,
+            'message' => 'Customer created successfully.'
+        ]);
     }
 
     public function search(Request $request)

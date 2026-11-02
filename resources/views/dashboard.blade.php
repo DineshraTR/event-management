@@ -755,11 +755,11 @@
             </div>
             <div class="col-lg-5 text-lg-end">
                 <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
-                    <a href="{{ route('events.create') }}" class="btn-hero-primary shadow-sm">
-                        <i class="bi bi-calendar-plus-fill text-primary"></i> Register Event
+                    <a href="{{ route('events.create') }}" class="btn-hero-secondary shadow-sm text-white" target="_blank">
+                        <i class="bi bi-calendar-plus-fill text-white"></i> Register Event
                     </a>
-                    <a href="{{ route('quotations.create') }}" class="btn-hero-secondary shadow-sm">
-                        <i class="bi bi-file-earmark-plus"></i> New Quotation
+                    <a href="{{ route('quotations.create') }}" class="btn-hero-secondary shadow-sm" target="_blank">
+                        <i class="bi bi-file-earmark-plus text-white"></i> New Quotation
                     </a>
                 </div>
             </div>

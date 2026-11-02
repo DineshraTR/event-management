@@ -127,26 +127,19 @@ class PaymentController extends Controller
             ? 'Payment recorded and Cheque saved to Cheque Management (In Hand).' 
             : 'Payment recorded successfully!';
 
-        return redirect()->route('orders.print', ['order' => $validated['order_id'], 'auto_print' => 1])
-            ->with('success', $successMsg . ' Invoice / Receipt ready to print.');
+        return redirect()->route('payments.print', ['payment' => $payment->id, 'auto_print' => 1])
+            ->with('success', $successMsg . ' Payment receipt voucher ready.');
     }
 
     public function printReceipt(Payment $payment)
     {
-        $order = $payment->order;
-        $order->load([
+        $payment->load([
             'customer',
-            'event.subCategory.category',
-            'event.subCategory.subCategoryServices.service',
-            'services.service',
-            'otherCharges',
-            'payments',
+            'order.event.subCategory',
+            'bank'
         ]);
 
-        return view('orders.print', [
-            'order' => $order,
-            'highlightPaymentId' => $payment->id
-        ]);
+        return view('payments.print', compact('payment'));
     }
 
     public function show(Payment $payment)

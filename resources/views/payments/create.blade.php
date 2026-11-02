@@ -314,9 +314,9 @@
                                             @endforeach
                                         @endif
                                     </select>
-                                    <a href="{{ route('banks.create') }}" target="_blank" class="btn btn-outline-secondary d-flex align-items-center text-nowrap" style="font-size: 12px;">
+                                    <button type="button" class="btn btn-outline-secondary d-flex align-items-center text-nowrap" style="font-size: 12px;" data-bs-toggle="modal" data-bs-target="#quickBankModal">
                                         <i class="bi bi-plus-lg me-1"></i> Add Bank
-                                    </a>
+                                    </button>
                                 </div>
                                 <small class="text-muted d-block mt-1" style="font-size: 11px;">Select the bank account where money was credited.</small>
                             </div>
@@ -354,6 +354,52 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+<!-- POPUP MODAL: QUICK ADD BANK ACCOUNT -->
+<div class="modal fade" id="quickBankModal" tabindex="-1" aria-labelledby="quickBankModalLabel" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <h6 class="modal-title fw-bold text-white mb-0 d-flex align-items-center gap-2" id="quickBankModalLabel">
+                    <i class="bi bi-bank text-warning"></i> Quick Register Bank Account
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="quickBankModalAlert" class="alert alert-danger d-none py-2 px-3 small" style="border-radius: 8px;"></div>
+                <form id="quickBankForm">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Bank Name <span class="text-danger">*</span></label>
+                        <input type="text" id="modalBankName" class="form-control" placeholder="e.g. Bank of Ceylon, Commercial Bank..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Account Holder Name <span class="text-danger">*</span></label>
+                        <input type="text" id="modalAccountName" class="form-control" placeholder="e.g. PUBUDU ISHANTHA" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Account Number <span class="text-danger">*</span></label>
+                        <input type="text" id="modalAccountNumber" class="form-control font-monospace" placeholder="e.g. 86952315" required>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Branch Name</label>
+                            <input type="text" id="modalBranch" class="form-control" placeholder="e.g. Colombo Main">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Opening Balance (Rs.)</label>
+                            <input type="number" step="0.01" min="0" id="modalOpeningBalance" class="form-control font-monospace" placeholder="0.00" value="0">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer bg-light py-2 px-4">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm fw-semibold" id="btnSaveQuickBank" onclick="saveQuickBankAjax('bankNameSelect')">
+                    <i class="bi bi-check-lg me-1"></i> Save & Select Bank
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -603,5 +649,83 @@
 
         onPaymentMethodChange(document.getElementById('paymentMethod').value);
     });
+
+    // AJAX Save Quick Bank
+    function saveQuickBankAjax(targetSelectId = 'bankNameSelect') {
+        const bankName = document.getElementById('modalBankName').value.trim();
+        const accountName = document.getElementById('modalAccountName').value.trim();
+        const accountNumber = document.getElementById('modalAccountNumber').value.trim();
+        const branch = document.getElementById('modalBranch').value.trim();
+        const openingBalance = document.getElementById('modalOpeningBalance').value.trim() || 0;
+        const alertBox = document.getElementById('quickBankModalAlert');
+        const btnSave = document.getElementById('btnSaveQuickBank');
+
+        if (!bankName || !accountName || !accountNumber) {
+            alertBox.classList.remove('d-none');
+            alertBox.innerText = 'Bank Name, Account Holder Name, and Account Number are required.';
+            return;
+        }
+
+        alertBox.classList.add('d-none');
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+        fetch("{{ route('banks.quick-store') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                bank_name: bankName,
+                account_name: accountName,
+                account_number: accountNumber,
+                branch: branch,
+                opening_balance: openingBalance
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btnSave.disabled = false;
+            btnSave.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Select Bank';
+
+            if (data.success && data.bank) {
+                const selectEl = document.getElementById(targetSelectId);
+                if (selectEl) {
+                    const optVal = data.display_value;
+                    const optText = data.display_text;
+                    if (typeof jQuery !== 'undefined') {
+                        const $select = jQuery(selectEl);
+                        $select.append(new Option(optText, optVal, true, true));
+                        $select.val(optVal).trigger('change');
+                    } else {
+                        selectEl.add(new Option(optText, optVal, true, true));
+                        selectEl.value = optVal;
+                        selectEl.dispatchEvent(new Event('change'));
+                    }
+                }
+
+                const modalEl = document.getElementById('quickBankModal');
+                if (window.bootstrap && bootstrap.Modal) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                } else if (typeof jQuery !== 'undefined') {
+                    jQuery(modalEl).modal('hide');
+                }
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.getElementById('quickBankForm').reset();
+            } else {
+                alertBox.classList.remove('d-none');
+                alertBox.innerText = data.message || 'Failed to save bank.';
+            }
+        })
+        .catch(err => {
+            btnSave.disabled = false;
+            btnSave.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Select Bank';
+            alertBox.classList.remove('d-none');
+            alertBox.innerText = 'Network error while saving bank account.';
+        });
+    }
 </script>
 @endsection

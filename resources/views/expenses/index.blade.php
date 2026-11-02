@@ -287,18 +287,42 @@
                         </td>
 
                         <!-- Actions -->
+                        @php
+                            $isCheque = ($expense->payment_method === 'cheque' || $expense->cheque);
+                            $chequeStatus = $expense->cheque?->status;
+                            $isChequeLocked = $isCheque && $chequeStatus && in_array(strtolower($chequeStatus), ['realized', 'issued', 'released', 'cleared', 'deposited']);
+                        @endphp
                         <td class="text-end pe-4 text-nowrap">
                             <div class="d-inline-flex align-items-center gap-1">
-                                <a href="{{ route('expenses.edit', $expense) }}" class="btn btn-sm btn-outline-secondary px-2 py-1" title="Edit Expense" style="font-size: 12px;">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete this expense?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1" title="Delete Expense" style="font-size: 12px;">
-                                        <i class="bi bi-trash"></i>
+                                @if($isChequeLocked)
+                                    <button type="button" class="btn btn-sm btn-light text-muted border px-2 py-1 opacity-75" 
+                                            disabled 
+                                            title="Cheque is {{ $chequeStatus }} - Edit disabled"
+                                            style="font-size: 12px;">
+                                        <i class="bi bi-lock-fill text-warning"></i>
                                     </button>
-                                </form>
+                                @else
+                                    <a href="{{ route('expenses.edit', $expense) }}" class="btn btn-sm btn-outline-secondary px-2 py-1" title="Edit Expense" style="font-size: 12px;">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                @endif
+
+                                @if($isCheque)
+                                    <button type="button" class="btn btn-sm btn-light text-muted border px-2 py-1 opacity-75" 
+                                            disabled 
+                                            title="Cheque expenses cannot be deleted"
+                                            style="font-size: 12px;">
+                                        <i class="bi bi-trash text-muted"></i>
+                                    </button>
+                                @else
+                                    <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete this expense?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1" title="Delete Expense" style="font-size: 12px;">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         </td>
                     </tr>

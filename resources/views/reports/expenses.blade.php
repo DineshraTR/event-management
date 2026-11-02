@@ -115,8 +115,11 @@
         <button type="button" class="btn btn-outline-secondary shadow-sm" onclick="window.print()">
             <i class="bi bi-printer me-1"></i> Print Report
         </button>
-        <a href="{{ route('expenses.index') }}" class="btn btn-primary shadow-sm">
-            <i class="bi bi-plus-lg me-1"></i> Record New Expense
+        <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#quickExpenseModal">
+            <i class="bi bi-plus-lg me-1"></i> Quick Add Expense
+        </button>
+        <a href="{{ route('expenses.index') }}" class="btn btn-outline-secondary shadow-sm" title="Full Screen Expense Terminal">
+            <i class="bi bi-box-arrow-up-right"></i> Terminal
         </a>
     </div>
 </div>
@@ -126,6 +129,16 @@
         <i class="bi bi-check-circle-fill fs-5"></i>
         <div>
             {{ session('success') }}
+        </div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
+@if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2 mb-4 shadow-sm" role="alert" style="border-radius: 10px;">
+        <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+        <div>
+            {{ session('error') }}
         </div>
         <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
@@ -383,6 +396,11 @@
                                         @if($exp->cheque_no)
                                             <small class="text-muted d-block font-monospace" style="font-size: 10.5px;">#{{ $exp->cheque_no }}</small>
                                         @endif
+                                        @if($exp->cheque)
+                                            <span class="{{ $exp->cheque->badge_class }} d-inline-block mt-0.5" style="font-size: 9.5px; padding: 1.5px 5px;">
+                                                {{ $exp->cheque->status }}
+                                            </span>
+                                        @endif
                                     @else
                                         <span class="badge bg-success-subtle text-success border border-success-subtle">
                                             <i class="bi bi-cash me-1"></i> Cash
@@ -392,18 +410,40 @@
                                 <td class="text-end">
                                     <div class="fw-bold text-danger fs-6">Rs. {{ number_format($exp->amount, 2) }}</div>
                                 </td>
+                                @php
+                                    $isChequeDirect = ($exp->payment_method === 'cheque' || $exp->cheque);
+                                    $chequeStatusDirect = $exp->cheque?->status;
+                                    $isChequeLockedDirect = $isChequeDirect && $chequeStatusDirect && in_array(strtolower($chequeStatusDirect), ['realized', 'issued', 'released', 'cleared', 'deposited']);
+                                @endphp
                                 <td class="text-center">
                                     <div class="d-flex align-items-center justify-content-center gap-1">
-                                        <a href="{{ route('expenses.edit', $exp->id) }}" class="btn btn-sm btn-outline-secondary btn-action" title="Edit">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-                                        <form method="POST" action="{{ route('expenses.destroy', $exp->id) }}" onsubmit="return confirm('Delete this expense?');" class="d-inline">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger btn-action" title="Delete">
-                                                <i class="bi bi-trash3"></i>
+                                        @if($isChequeLockedDirect)
+                                            <button type="button" class="btn btn-sm btn-light text-muted border btn-action opacity-75" 
+                                                    disabled 
+                                                    title="Cheque is {{ $chequeStatusDirect }} - Edit disabled">
+                                                <i class="bi bi-lock-fill text-warning"></i>
                                             </button>
-                                        </form>
+                                        @else
+                                            <a href="{{ route('expenses.edit', $exp->id) }}" class="btn btn-sm btn-outline-secondary btn-action" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                        @endif
+
+                                        @if($isChequeDirect)
+                                            <button type="button" class="btn btn-sm btn-light text-muted border btn-action opacity-75" 
+                                                    disabled 
+                                                    title="Cheque expenses cannot be deleted">
+                                                <i class="bi bi-trash3 text-muted"></i>
+                                            </button>
+                                        @else
+                                            <form method="POST" action="{{ route('expenses.destroy', $exp->id) }}" onsubmit="return confirm('Delete this expense?');" class="d-inline">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger btn-action" title="Delete">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -482,6 +522,11 @@
                                         @if($exp->cheque_no)
                                             <small class="text-muted d-block font-monospace" style="font-size: 10.5px;">#{{ $exp->cheque_no }}</small>
                                         @endif
+                                        @if($exp->cheque)
+                                            <span class="{{ $exp->cheque->badge_class }} d-inline-block mt-0.5" style="font-size: 9.5px; padding: 1.5px 5px;">
+                                                {{ $exp->cheque->status }}
+                                            </span>
+                                        @endif
                                     @else
                                         <span class="badge bg-success-subtle text-success border border-success-subtle">
                                             <i class="bi bi-cash me-1"></i> Cash
@@ -491,18 +536,40 @@
                                 <td class="text-end">
                                     <div class="fw-bold text-danger fs-6">Rs. {{ number_format($exp->amount, 2) }}</div>
                                 </td>
+                                @php
+                                    $isChequeDirect = ($exp->payment_method === 'cheque' || $exp->cheque);
+                                    $chequeStatusDirect = $exp->cheque?->status;
+                                    $isChequeLockedDirect = $isChequeDirect && $chequeStatusDirect && in_array(strtolower($chequeStatusDirect), ['realized', 'issued', 'released', 'cleared', 'deposited']);
+                                @endphp
                                 <td class="text-center">
                                     <div class="d-flex align-items-center justify-content-center gap-1">
-                                        <a href="{{ route('expenses.edit', $exp->id) }}" class="btn btn-sm btn-outline-secondary btn-action" title="Edit">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-                                        <form method="POST" action="{{ route('expenses.destroy', $exp->id) }}" onsubmit="return confirm('Delete this expense?');" class="d-inline">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger btn-action" title="Delete">
-                                                <i class="bi bi-trash3"></i>
+                                        @if($isChequeLockedDirect)
+                                            <button type="button" class="btn btn-sm btn-light text-muted border btn-action opacity-75" 
+                                                    disabled 
+                                                    title="Cheque is {{ $chequeStatusDirect }} - Edit disabled">
+                                                <i class="bi bi-lock-fill text-warning"></i>
                                             </button>
-                                        </form>
+                                        @else
+                                            <a href="{{ route('expenses.edit', $exp->id) }}" class="btn btn-sm btn-outline-secondary btn-action" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                        @endif
+
+                                        @if($isChequeDirect)
+                                            <button type="button" class="btn btn-sm btn-light text-muted border btn-action opacity-75" 
+                                                    disabled 
+                                                    title="Cheque expenses cannot be deleted">
+                                                <i class="bi bi-trash3 text-muted"></i>
+                                            </button>
+                                        @else
+                                            <form method="POST" action="{{ route('expenses.destroy', $exp->id) }}" onsubmit="return confirm('Delete this expense?');" class="d-inline">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger btn-action" title="Delete">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -526,12 +593,324 @@
         </div>
     </div>
 </div>
+
+<!-- ============================================================== -->
+<!-- POPUP MODAL: QUICK ADD EXPENSE                                 -->
+<!-- ============================================================== -->
+<div class="modal fade" id="quickExpenseModal" tabindex="-1" aria-labelledby="quickExpenseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <h6 class="modal-title fw-bold text-white mb-0 d-flex align-items-center gap-2" id="quickExpenseModalLabel">
+                    <i class="bi bi-wallet2 text-warning"></i> Quick Record Expense Voucher
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form method="POST" action="{{ route('expenses.store') }}" id="modalExpenseForm">
+                @csrf
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <!-- Expense Type -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                Classification <span class="text-danger">*</span>
+                            </label>
+                            <select name="type" id="modalExpType" class="form-select fw-semibold" onchange="toggleModalExpType(this.value)" required>
+                                <option value="normal">🏢 Normal Operational Overhead</option>
+                                <option value="direct">🎉 Direct Event Expense</option>
+                            </select>
+                        </div>
+
+                        <!-- Target Order (for Direct) -->
+                        <div class="col-12 col-md-6 d-none" id="modalOrderCol">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                Target Order / Customer <span class="text-danger">*</span>
+                            </label>
+                            <select name="order_id" id="modalOrderId" class="form-select">
+                                <option value="">-- Choose Order --</option>
+                                @foreach($orders as $o)
+                                    <option value="{{ $o->id }}">
+                                        {{ $o->order_no }} - {{ $o->customer?->name ?? 'Walk-in' }} ({{ $o->event?->event_name ?? 'Event' }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <!-- Category (for Normal) -->
+                        <div class="col-12 col-md-6" id="modalCategoryCol">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                Category <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="category" id="modalCategoryInput" class="form-control" list="modalCategoryList" placeholder="e.g. Office Rent, Electricity, Fuel...">
+                            <datalist id="modalCategoryList">
+                                @foreach($categories as $cat)
+                                    <option value="{{ $cat }}">
+                                @endforeach
+                            </datalist>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-12 col-md-8">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                Description / Payee <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="description" class="form-control" placeholder="What was this payment for?" required>
+                        </div>
+
+                        <!-- Expense Date -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                Date <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" name="expense_date" class="form-control" value="{{ date('Y-m-d') }}" required>
+                        </div>
+
+                        <!-- Amount -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                Amount (Rs.) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text fw-bold bg-light text-danger">Rs.</span>
+                                <input type="number" step="0.01" min="0.01" name="amount" class="form-control font-monospace fw-bold text-danger fs-6" placeholder="0.00" required>
+                            </div>
+                        </div>
+
+                        <!-- Payment Method -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                Payment Method <span class="text-danger">*</span>
+                            </label>
+                            <select name="payment_method" id="modalPaymentMethod" class="form-select" onchange="toggleModalMethod(this.value)" required>
+                                <option value="cash">💵 Cash Payment</option>
+                                <option value="bank_transfer">🏦 Bank Transfer</option>
+                                <option value="cheque">📑 Cheque Payment</option>
+                            </select>
+                        </div>
+
+                        <!-- Bank Account (if Bank Transfer) -->
+                        <div class="col-12 d-none" id="modalBankRow">
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <label class="form-label small fw-bold text-dark mb-0">
+                                    Debited Bank Account <span class="text-danger">*</span>
+                                </label>
+                                <button type="button" class="btn btn-sm btn-light border py-0 px-2" style="font-size: 11px;" data-bs-toggle="modal" data-bs-target="#quickBankModal">
+                                    <i class="bi bi-plus-lg me-1 text-primary"></i> Add Bank
+                                </button>
+                            </div>
+                            <select name="bank_name" id="modalBankSelect" class="form-select">
+                                <option value="">-- Choose Debited Bank Account --</option>
+                                @foreach($banks as $b)
+                                    <option value="{{ $b->bank_name }} - {{ $b->account_number }} ({{ $b->branch }})">
+                                        {{ $b->bank_name }} &bull; {{ $b->account_number }} ({{ $b->branch ?: 'Main' }}) - Bal: Rs. {{ number_format($b->current_balance, 2) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <!-- Cheque Number (if Cheque) -->
+                        <div class="col-12 d-none" id="modalChequeRow">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                Cheque Serial Number <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="cheque_no" id="modalChequeInput" class="form-control font-monospace" placeholder="e.g. CHQ-901824">
+                        </div>
+
+                        <!-- Reference & Notes -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold text-dark mb-1">Reference / Bill #</label>
+                            <input type="text" name="reference" class="form-control" placeholder="Slip or Invoice #">
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <label class="form-label small fw-bold text-dark mb-1">Internal Notes</label>
+                            <input type="text" name="notes" class="form-control" placeholder="Optional notes...">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-2 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-4 fw-semibold">
+                        <i class="bi bi-check2-circle me-1"></i> Save & Post Expense
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- POPUP MODAL: QUICK ADD BANK ACCOUNT                            -->
+<!-- ============================================================== -->
+<div class="modal fade" id="quickBankModal" tabindex="-1" aria-labelledby="quickBankModalLabel" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <h6 class="modal-title fw-bold text-white mb-0 d-flex align-items-center gap-2" id="quickBankModalLabel">
+                    <i class="bi bi-bank text-warning"></i> Quick Register Bank Account
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="quickBankModalAlert" class="alert alert-danger d-none py-2 px-3 small" style="border-radius: 8px;"></div>
+                <form id="quickBankForm">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Bank Name <span class="text-danger">*</span></label>
+                        <input type="text" id="modalBankName" class="form-control" placeholder="e.g. Bank of Ceylon, Commercial Bank..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Account Holder Name <span class="text-danger">*</span></label>
+                        <input type="text" id="modalAccountName" class="form-control" placeholder="e.g. PUBUDU ISHANTHA" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Account Number <span class="text-danger">*</span></label>
+                        <input type="text" id="modalAccountNumber" class="form-control font-monospace" placeholder="e.g. 86952315" required>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Branch Name</label>
+                            <input type="text" id="modalBranch" class="form-control" placeholder="e.g. Colombo Main">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Opening Balance (Rs.)</label>
+                            <input type="number" step="0.01" min="0" id="modalOpeningBalance" class="form-control font-monospace" placeholder="0.00" value="0">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer bg-light py-2 px-4">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm fw-semibold" id="btnSaveQuickBank" onclick="saveQuickBankAjax('modalBankSelect')">
+                    <i class="bi bi-check-lg me-1"></i> Save & Select Bank
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
 <script>
     function setReportTab(tabName) {
         document.getElementById('filterActiveTab').value = tabName;
+    }
+
+    function toggleModalExpType(type) {
+        const orderCol = document.getElementById('modalOrderCol');
+        const catCol = document.getElementById('modalCategoryCol');
+        const orderSelect = document.getElementById('modalOrderId');
+
+        if (type === 'direct') {
+            orderCol.classList.remove('d-none');
+            catCol.classList.add('d-none');
+            orderSelect.setAttribute('required', 'required');
+        } else {
+            orderCol.classList.add('d-none');
+            catCol.classList.remove('d-none');
+            orderSelect.removeAttribute('required');
+        }
+    }
+
+    function toggleModalMethod(method) {
+        const bankRow = document.getElementById('modalBankRow');
+        const chequeRow = document.getElementById('modalChequeRow');
+        const bankSelect = document.getElementById('modalBankSelect');
+        const chequeInput = document.getElementById('modalChequeInput');
+
+        if (method === 'bank_transfer') {
+            bankRow.classList.remove('d-none');
+            chequeRow.classList.add('d-none');
+            bankSelect.setAttribute('required', 'required');
+            chequeInput.removeAttribute('required');
+        } else if (method === 'cheque') {
+            bankRow.classList.add('d-none');
+            chequeRow.classList.remove('d-none');
+            bankSelect.removeAttribute('required');
+            chequeInput.setAttribute('required', 'required');
+        } else {
+            bankRow.classList.add('d-none');
+            chequeRow.classList.add('d-none');
+            bankSelect.removeAttribute('required');
+            chequeInput.removeAttribute('required');
+        }
+    }
+
+    function saveQuickBankAjax(targetSelectId = 'modalBankSelect') {
+        const bankName = document.getElementById('modalBankName').value.trim();
+        const accountName = document.getElementById('modalAccountName').value.trim();
+        const accountNumber = document.getElementById('modalAccountNumber').value.trim();
+        const branch = document.getElementById('modalBranch').value.trim();
+        const openingBalance = document.getElementById('modalOpeningBalance').value.trim() || 0;
+        const alertBox = document.getElementById('quickBankModalAlert');
+        const btnSave = document.getElementById('btnSaveQuickBank');
+
+        if (!bankName || !accountName || !accountNumber) {
+            alertBox.classList.remove('d-none');
+            alertBox.innerText = 'Bank Name, Account Holder Name, and Account Number are required.';
+            return;
+        }
+
+        alertBox.classList.add('d-none');
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+        fetch("{{ route('banks.quick-store') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                bank_name: bankName,
+                account_name: accountName,
+                account_number: accountNumber,
+                branch: branch,
+                opening_balance: openingBalance
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btnSave.disabled = false;
+            btnSave.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Select Bank';
+
+            if (data.success && data.bank) {
+                const selectEl = document.getElementById(targetSelectId);
+                if (selectEl) {
+                    const optVal = data.display_value;
+                    const optText = data.display_text;
+                    if (typeof jQuery !== 'undefined') {
+                        const $select = jQuery(selectEl);
+                        $select.append(new Option(optText, optVal, true, true));
+                        $select.val(optVal).trigger('change');
+                    } else {
+                        selectEl.add(new Option(optText, optVal, true, true));
+                        selectEl.value = optVal;
+                        selectEl.dispatchEvent(new Event('change'));
+                    }
+                }
+
+                const modalEl = document.getElementById('quickBankModal');
+                if (window.bootstrap && bootstrap.Modal) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                } else if (typeof jQuery !== 'undefined') {
+                    jQuery(modalEl).modal('hide');
+                }
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.getElementById('quickBankForm').reset();
+            } else {
+                alertBox.classList.remove('d-none');
+                alertBox.innerText = data.message || 'Failed to save bank.';
+            }
+        })
+        .catch(err => {
+            btnSave.disabled = false;
+            btnSave.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Select Bank';
+            alertBox.classList.remove('d-none');
+            alertBox.innerText = 'An error occurred while saving bank account.';
+        });
     }
 </script>
 @endsection

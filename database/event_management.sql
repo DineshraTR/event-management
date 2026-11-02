@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3308
--- Generation Time: Oct 30, 2026 at 12:54 PM
+-- Generation Time: Nov 02, 2026 at 01:10 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -617,8 +617,8 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `name`, `username`, `email`, `role`, `phone`, `is_active`, `email_verified_at`, `password`, `remember_token`, `created_at`, `updated_at`) VALUES
-(1, 'System Administrator', 'admin', 'admin@eventpro.com', 'Admin', '+94 77 123 4567', 1, NULL, '$2y$12$8XDBMJmlB520CgCxisPq6.b5LVBsDyCG9dYcXycceJ8Rc5VkyKLSu', '7vPCuL3OPQV9E1YCZ6jNnXGKJDMn3dNESwRPe0FxQbH0VVsydd3d6cKp2UYn', '2026-10-16 03:58:08', '2026-10-16 03:58:08'),
-(2, 'Event Manager', 'manager', 'manager@eventpro.com', 'Manager', '+94 71 987 6543', 0, NULL, '$2y$12$.XeQs96EpuXTMiKm8bqEu.Ii/pYuqyfOirYUB9Dku5NuuS..kwujq', NULL, '2026-10-16 03:58:09', '2026-10-19 00:36:31');
+(1, 'System Administrator', 'admin', 'admin@eventpro.com', 'Admin', '+94 77 123 4567', 1, NULL, '$2y$12$8XDBMJmlB520CgCxisPq6.b5LVBsDyCG9dYcXycceJ8Rc5VkyKLSu', 'Q3XCG79mFsygQ7GDQCHAlStPrr2qIBeOHOP9YFVVtASFJGvAIVV7Hwvy8T9p', '2026-10-16 03:58:08', '2026-10-16 03:58:08'),
+(2, 'Event Manager', 'manager', 'manager@eventpro.com', 'Manager', '+94 71 987 6543', 1, NULL, '$2y$12$YsgHLe4hfp2KrfQAHwVRjO08zMuTQL7vDw4F9rfWVL5Tf37NIyZSm', NULL, '2026-10-16 03:58:09', '2026-11-01 23:38:06');
 
 --
 -- Indexes for dumped tables

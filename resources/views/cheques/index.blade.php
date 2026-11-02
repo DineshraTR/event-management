@@ -53,7 +53,7 @@
     </div>
 @endif
 
-@if($errors->any())
+@if(isset($errors) && $errors->any())
     <div class="alert alert-danger alert-dismissible fade show mb-4 shadow-sm no-print" role="alert" style="border-radius: 10px;">
         <div class="fw-bold mb-1"><i class="bi bi-exclamation-circle me-1"></i> Please check the form errors below:</div>
         <ul class="mb-0 ps-3 small">
@@ -65,117 +65,282 @@
     </div>
 @endif
 
+<style>
+    .kpi-card-hover {
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .kpi-card-hover:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important;
+    }
+</style>
+
 <!-- ============================================================== -->
-<!-- 1. KPI STAT CARDS OVERVIEW (EventPro Style)                   -->
+<!-- 1. NAVIGATION TABS & OVERVIEW BANNER                          -->
 <!-- ============================================================== -->
-<div class="row g-3 mb-4">
-    <!-- 1. Cheques In Hand -->
-    <div class="col-12 col-sm-6 col-xl-3">
-        <a href="{{ route('cheques.index', ['tab' => 'in', 'status' => 'In Hand']) }}" class="text-decoration-none">
-            <div class="card shadow-sm border-0 h-100" style="border-radius: 12px; border: 1px solid #edf2f7 !important;">
-                <div class="card-body p-3.5 d-flex align-items-center gap-3">
-                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
-                        style="width: 48px; height: 48px; background-color: #fffbeb; color: #d97706; font-size: 22px;">
-                        <i class="bi bi-wallet2"></i>
-                    </div>
-                    <div class="flex-grow-1 overflow-hidden">
-                        <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Cheques In Hand</span>
-                        <h5 class="fw-bold text-dark mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
-                            Rs. {{ number_format($kpiInHand['total'], 2) }}
-                        </h5>
-                        <small class="text-muted" style="font-size: 11px;">{{ $kpiInHand['cnt'] }} Cheque(s) in office/safe</small>
-                    </div>
-                </div>
-            </div>
-        </a>
-    </div>
+<div class="card shadow-sm border-0 mb-3 no-print" style="border-radius: 12px; border: 1px solid #edf2f7 !important;">
+    <div class="card-body p-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <!-- Tabs Buttons -->
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <a href="{{ route('cheques.index', ['tab' => 'in']) }}"
+               class="btn {{ $activeTab === 'in' ? 'btn-primary' : 'btn-outline-secondary' }} px-3 py-2 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm"
+               style="font-size: 13px; border-radius: 8px;">
+                <i class="bi bi-arrow-down-left-circle {{ $activeTab === 'in' ? 'text-white' : 'text-success' }}"></i>
+                <span>Cheque In (Received Cheques)</span>
+                <span class="badge {{ $activeTab === 'in' ? 'bg-white text-primary' : 'bg-secondary text-white' }} rounded-pill ms-1" style="font-size: 11px;">
+                    {{ $kpiTotalIn['cnt'] }}
+                </span>
+            </a>
+            <a href="{{ route('cheques.index', ['tab' => 'out']) }}"
+               class="btn {{ $activeTab === 'out' ? 'btn-primary' : 'btn-outline-secondary' }} px-3 py-2 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm"
+               style="font-size: 13px; border-radius: 8px;">
+                <i class="bi bi-arrow-up-right-circle {{ $activeTab === 'out' ? 'text-white' : 'text-danger' }}"></i>
+                <span>Cheque Out (Issued Cheques)</span>
+                <span class="badge {{ $activeTab === 'out' ? 'bg-white text-primary' : 'bg-secondary text-white' }} rounded-pill ms-1" style="font-size: 11px;">
+                    {{ $kpiTotalOut['cnt'] }}
+                </span>
+            </a>
+        </div>
 
-    <!-- 2. Deposited (In Clearing) -->
-    <div class="col-12 col-sm-6 col-xl-3">
-        <a href="{{ route('cheques.index', ['tab' => 'in', 'status' => 'Deposited']) }}" class="text-decoration-none">
-            <div class="card shadow-sm border-0 h-100" style="border-radius: 12px; border: 1px solid #edf2f7 !important;">
-                <div class="card-body p-3.5 d-flex align-items-center gap-3">
-                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
-                        style="width: 48px; height: 48px; background-color: #eff6ff; color: #2563eb; font-size: 22px;">
-                        <i class="bi bi-bank2"></i>
-                    </div>
-                    <div class="flex-grow-1 overflow-hidden">
-                        <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Deposited (In Clearing)</span>
-                        <h5 class="fw-bold text-primary mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
-                            Rs. {{ number_format($kpiDeposited['total'], 2) }}
-                        </h5>
-                        <small class="text-muted" style="font-size: 11px;">{{ $kpiDeposited['cnt'] }} Cheque(s) in bank pipeline</small>
-                    </div>
-                </div>
+        <!-- Portfolio Totals Snapshot -->
+        <div class="d-flex align-items-center gap-3 ms-auto text-nowrap">
+            <div class="text-end border-end pe-3">
+                <span class="text-muted small d-block" style="font-size: 11px;">Total Inward Received</span>
+                <strong class="text-success" style="font-size: 13.5px;">Rs. {{ number_format($kpiTotalIn['total'], 2) }}</strong>
+                <span class="text-muted small">({{ $kpiTotalIn['cnt'] }})</span>
             </div>
-        </a>
-    </div>
-
-    <!-- 3. Realized (Cleared In) -->
-    <div class="col-12 col-sm-6 col-xl-3">
-        <a href="{{ route('cheques.index', ['tab' => 'in', 'status' => 'Realized']) }}" class="text-decoration-none">
-            <div class="card shadow-sm border-0 h-100" style="border-radius: 12px; border: 1px solid #edf2f7 !important;">
-                <div class="card-body p-3.5 d-flex align-items-center gap-3">
-                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
-                        style="width: 48px; height: 48px; background-color: #ecfdf5; color: #059669; font-size: 22px;">
-                        <i class="bi bi-check2-circle"></i>
-                    </div>
-                    <div class="flex-grow-1 overflow-hidden">
-                        <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Realized (Cleared In)</span>
-                        <h5 class="fw-bold text-success mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
-                            Rs. {{ number_format($kpiRealizedIn['total'], 2) }}
-                        </h5>
-                        <small class="text-muted" style="font-size: 11px;">{{ $kpiRealizedIn['cnt'] }} Cheque(s) credited to bank</small>
-                    </div>
-                </div>
+            <div class="text-end">
+                <span class="text-muted small d-block" style="font-size: 11px;">Total Outward Issued</span>
+                <strong class="text-danger" style="font-size: 13.5px;">Rs. {{ number_format($kpiTotalOut['total'], 2) }}</strong>
+                <span class="text-muted small">({{ $kpiTotalOut['cnt'] }})</span>
             </div>
-        </a>
-    </div>
-
-    <!-- 4. Returned (Bounced In) -->
-    <div class="col-12 col-sm-6 col-xl-3">
-        <a href="{{ route('cheques.index', ['tab' => 'in', 'status' => 'Returned']) }}" class="text-decoration-none">
-            <div class="card shadow-sm border-0 h-100" style="border-radius: 12px; border: 1px solid #edf2f7 !important;">
-                <div class="card-body p-3.5 d-flex align-items-center gap-3">
-                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
-                        style="width: 48px; height: 48px; background-color: #fff1f2; color: #e11d48; font-size: 22px;">
-                        <i class="bi bi-arrow-return-left"></i>
-                    </div>
-                    <div class="flex-grow-1 overflow-hidden">
-                        <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Returned Cheques</span>
-                        <h5 class="fw-bold text-danger mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
-                            Rs. {{ number_format($kpiReturnedIn['total'], 2) }}
-                        </h5>
-                        <small class="text-danger fw-semibold" style="font-size: 11px;">{{ $kpiReturnedIn['cnt'] }} Bounced / Due back</small>
-                    </div>
-                </div>
-            </div>
-        </a>
+        </div>
     </div>
 </div>
 
 <!-- ============================================================== -->
-<!-- 2. SUBTLE PILL NAVIGATION TABS                                -->
+<!-- 2. KPI STAT CARDS (Tab-Specific & Interactive Filter Cards)    -->
 <!-- ============================================================== -->
-<div class="d-flex align-items-center gap-2 mb-3 pb-1 border-bottom no-print">
-    <a href="{{ route('cheques.index', ['tab' => 'in']) }}"
-       class="btn {{ $activeTab === 'in' ? 'btn-primary' : 'btn-outline-secondary' }} px-3 py-1.5 fw-semibold d-inline-flex align-items-center gap-2"
-       style="font-size: 13px; border-radius: 8px;">
-        <i class="bi bi-arrow-down-left-circle {{ $activeTab === 'in' ? 'text-white' : 'text-success' }}"></i>
-        <span>Cheque In (Received Cheques)</span>
-        <span class="badge {{ $activeTab === 'in' ? 'bg-white text-dark' : 'bg-secondary text-white' }} rounded-pill ms-1" style="font-size: 10.5px;">
-            {{ $kpiInHand['cnt'] + $kpiDeposited['cnt'] + $kpiRealizedIn['cnt'] + $kpiReturnedIn['cnt'] }}
-        </span>
-    </a>
-    <a href="{{ route('cheques.index', ['tab' => 'out']) }}"
-       class="btn {{ $activeTab === 'out' ? 'btn-primary' : 'btn-outline-secondary' }} px-3 py-1.5 fw-semibold d-inline-flex align-items-center gap-2"
-       style="font-size: 13px; border-radius: 8px;">
-        <i class="bi bi-arrow-up-right-circle {{ $activeTab === 'out' ? 'text-white' : 'text-danger' }}"></i>
-        <span>Cheque Out (Issued Cheques)</span>
-        <span class="badge {{ $activeTab === 'out' ? 'bg-white text-dark' : 'bg-secondary text-white' }} rounded-pill ms-1" style="font-size: 10.5px;">
-            {{ $kpiIssuedOut['cnt'] + $kpiRealizedOut['cnt'] + $kpiReturnedOut['cnt'] }}
-        </span>
-    </a>
+<div class="row g-3 mb-4">
+    @if($activeTab === 'in')
+        <!-- CHEQUE IN CARDS -->
+        <!-- 1. Cheques In Hand -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <a href="{{ route('cheques.index', ['tab' => 'in', 'status' => 'In Hand']) }}" class="text-decoration-none">
+                <div class="card shadow-sm border-0 h-100 kpi-card-hover" 
+                     style="border-radius: 12px; border: {{ $statusFilter === 'In Hand' ? '2.5px solid #d97706' : '1px solid #edf2f7' }} !important; background: {{ $statusFilter === 'In Hand' ? '#fffdf7' : '#ffffff' }};">
+                    <div class="card-body p-3.5 d-flex align-items-center gap-3">
+                        <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm"
+                            style="width: 48px; height: 48px; background-color: #fffbeb; color: #d97706; font-size: 22px;">
+                            <i class="bi bi-wallet2"></i>
+                        </div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Cheques In Hand</span>
+                                @if($statusFilter === 'In Hand')
+                                    <span class="badge bg-warning text-dark px-1.5 py-0.5" style="font-size: 9.5px;">Active</span>
+                                @endif
+                            </div>
+                            <h5 class="fw-bold text-dark mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
+                                Rs. {{ number_format($kpiInHand['total'], 2) }}
+                            </h5>
+                            <small class="text-muted" style="font-size: 11px;">{{ $kpiInHand['cnt'] }} Cheque(s) in office/safe</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- 2. Deposited (In Clearing) -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <a href="{{ route('cheques.index', ['tab' => 'in', 'status' => 'Deposited']) }}" class="text-decoration-none">
+                <div class="card shadow-sm border-0 h-100 kpi-card-hover" 
+                     style="border-radius: 12px; border: {{ $statusFilter === 'Deposited' ? '2.5px solid #2563eb' : '1px solid #edf2f7' }} !important; background: {{ $statusFilter === 'Deposited' ? '#f8faff' : '#ffffff' }};">
+                    <div class="card-body p-3.5 d-flex align-items-center gap-3">
+                        <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm"
+                            style="width: 48px; height: 48px; background-color: #eff6ff; color: #2563eb; font-size: 22px;">
+                            <i class="bi bi-bank2"></i>
+                        </div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Deposited (In Clearing)</span>
+                                @if($statusFilter === 'Deposited')
+                                    <span class="badge bg-primary text-white px-1.5 py-0.5" style="font-size: 9.5px;">Active</span>
+                                @endif
+                            </div>
+                            <h5 class="fw-bold text-primary mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
+                                Rs. {{ number_format($kpiDeposited['total'], 2) }}
+                            </h5>
+                            <small class="text-muted" style="font-size: 11px;">{{ $kpiDeposited['cnt'] }} Cheque(s) in bank pipeline</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- 3. Realized (Cleared In) -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <a href="{{ route('cheques.index', ['tab' => 'in', 'status' => 'Realized']) }}" class="text-decoration-none">
+                <div class="card shadow-sm border-0 h-100 kpi-card-hover" 
+                     style="border-radius: 12px; border: {{ $statusFilter === 'Realized' ? '2.5px solid #059669' : '1px solid #edf2f7' }} !important; background: {{ $statusFilter === 'Realized' ? '#f6fdf9' : '#ffffff' }};">
+                    <div class="card-body p-3.5 d-flex align-items-center gap-3">
+                        <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm"
+                            style="width: 48px; height: 48px; background-color: #ecfdf5; color: #059669; font-size: 22px;">
+                            <i class="bi bi-check2-circle"></i>
+                        </div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Realized (Cleared In)</span>
+                                @if($statusFilter === 'Realized')
+                                    <span class="badge bg-success text-white px-1.5 py-0.5" style="font-size: 9.5px;">Active</span>
+                                @endif
+                            </div>
+                            <h5 class="fw-bold text-success mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
+                                Rs. {{ number_format($kpiRealizedIn['total'], 2) }}
+                            </h5>
+                            <small class="text-muted" style="font-size: 11px;">{{ $kpiRealizedIn['cnt'] }} Cheque(s) credited to bank</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- 4. Returned (Bounced In) -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <a href="{{ route('cheques.index', ['tab' => 'in', 'status' => 'Returned']) }}" class="text-decoration-none">
+                <div class="card shadow-sm border-0 h-100 kpi-card-hover" 
+                     style="border-radius: 12px; border: {{ $statusFilter === 'Returned' ? '2.5px solid #e11d48' : '1px solid #edf2f7' }} !important; background: {{ $statusFilter === 'Returned' ? '#fdf8f8' : '#ffffff' }};">
+                    <div class="card-body p-3.5 d-flex align-items-center gap-3">
+                        <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm"
+                            style="width: 48px; height: 48px; background-color: #fff1f2; color: #e11d48; font-size: 22px;">
+                            <i class="bi bi-arrow-return-left"></i>
+                        </div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Returned Cheques</span>
+                                @if($statusFilter === 'Returned')
+                                    <span class="badge bg-danger text-white px-1.5 py-0.5" style="font-size: 9.5px;">Active</span>
+                                @endif
+                            </div>
+                            <h5 class="fw-bold text-danger mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
+                                Rs. {{ number_format($kpiReturnedIn['total'], 2) }}
+                            </h5>
+                            <small class="text-danger fw-semibold" style="font-size: 11px;">{{ $kpiReturnedIn['cnt'] }} Bounced / Due back</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    @else
+        <!-- CHEQUE OUT CARDS -->
+        <!-- 1. Issued (Pending Clearance) -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <a href="{{ route('cheques.index', ['tab' => 'out', 'status' => 'Issued']) }}" class="text-decoration-none">
+                <div class="card shadow-sm border-0 h-100 kpi-card-hover" 
+                     style="border-radius: 12px; border: {{ $statusFilter === 'Issued' ? '2.5px solid #d97706' : '1px solid #edf2f7' }} !important; background: {{ $statusFilter === 'Issued' ? '#fffdf7' : '#ffffff' }};">
+                    <div class="card-body p-3.5 d-flex align-items-center gap-3">
+                        <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm"
+                            style="width: 48px; height: 48px; background-color: #fffbeb; color: #d97706; font-size: 22px;">
+                            <i class="bi bi-hourglass-split"></i>
+                        </div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Issued (Pending Clearance)</span>
+                                @if($statusFilter === 'Issued')
+                                    <span class="badge bg-warning text-dark px-1.5 py-0.5" style="font-size: 9.5px;">Active</span>
+                                @endif
+                            </div>
+                            <h5 class="fw-bold text-dark mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
+                                Rs. {{ number_format($kpiIssuedOut['total'], 2) }}
+                            </h5>
+                            <small class="text-muted" style="font-size: 11px;">{{ $kpiIssuedOut['cnt'] }} Cheque(s) pending debit</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- 2. Realized (Cleared Out) -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <a href="{{ route('cheques.index', ['tab' => 'out', 'status' => 'Realized']) }}" class="text-decoration-none">
+                <div class="card shadow-sm border-0 h-100 kpi-card-hover" 
+                     style="border-radius: 12px; border: {{ $statusFilter === 'Realized' ? '2.5px solid #059669' : '1px solid #edf2f7' }} !important; background: {{ $statusFilter === 'Realized' ? '#f6fdf9' : '#ffffff' }};">
+                    <div class="card-body p-3.5 d-flex align-items-center gap-3">
+                        <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm"
+                            style="width: 48px; height: 48px; background-color: #ecfdf5; color: #059669; font-size: 22px;">
+                            <i class="bi bi-check2-circle"></i>
+                        </div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Realized (Cleared Out)</span>
+                                @if($statusFilter === 'Realized')
+                                    <span class="badge bg-success text-white px-1.5 py-0.5" style="font-size: 9.5px;">Active</span>
+                                @endif
+                            </div>
+                            <h5 class="fw-bold text-success mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
+                                Rs. {{ number_format($kpiRealizedOut['total'], 2) }}
+                            </h5>
+                            <small class="text-muted" style="font-size: 11px;">{{ $kpiRealizedOut['cnt'] }} Cheque(s) debited from bank</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- 3. Returned (Bounced Out) -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <a href="{{ route('cheques.index', ['tab' => 'out', 'status' => 'Returned']) }}" class="text-decoration-none">
+                <div class="card shadow-sm border-0 h-100 kpi-card-hover" 
+                     style="border-radius: 12px; border: {{ $statusFilter === 'Returned' ? '2.5px solid #e11d48' : '1px solid #edf2f7' }} !important; background: {{ $statusFilter === 'Returned' ? '#fdf8f8' : '#ffffff' }};">
+                    <div class="card-body p-3.5 d-flex align-items-center gap-3">
+                        <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm"
+                            style="width: 48px; height: 48px; background-color: #fff1f2; color: #e11d48; font-size: 22px;">
+                            <i class="bi bi-arrow-return-left"></i>
+                        </div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Returned Cheques</span>
+                                @if($statusFilter === 'Returned')
+                                    <span class="badge bg-danger text-white px-1.5 py-0.5" style="font-size: 9.5px;">Active</span>
+                                @endif
+                            </div>
+                            <h5 class="fw-bold text-danger mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
+                                Rs. {{ number_format($kpiReturnedOut['total'], 2) }}
+                            </h5>
+                            <small class="text-danger fw-semibold" style="font-size: 11px;">{{ $kpiReturnedOut['cnt'] }} Bounced / Returned</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- 4. Cancelled / Void Cheques -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <a href="{{ route('cheques.index', ['tab' => 'out', 'status' => 'Cancelled']) }}" class="text-decoration-none">
+                <div class="card shadow-sm border-0 h-100 kpi-card-hover" 
+                     style="border-radius: 12px; border: {{ $statusFilter === 'Cancelled' ? '2.5px solid #64748b' : '1px solid #edf2f7' }} !important; background: {{ $statusFilter === 'Cancelled' ? '#f8fafc' : '#ffffff' }};">
+                    <div class="card-body p-3.5 d-flex align-items-center gap-3">
+                        <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm"
+                            style="width: 48px; height: 48px; background-color: #f1f5f9; color: #64748b; font-size: 22px;">
+                            <i class="bi bi-x-circle"></i>
+                        </div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Cancelled / Void</span>
+                                @if($statusFilter === 'Cancelled')
+                                    <span class="badge bg-secondary text-white px-1.5 py-0.5" style="font-size: 9.5px;">Active</span>
+                                @endif
+                            </div>
+                            <h5 class="fw-bold text-secondary mb-0 mt-0.5 text-truncate" style="font-size: 18px;">
+                                Rs. {{ number_format($kpiCancelledOut['total'], 2) }}
+                            </h5>
+                            <small class="text-muted" style="font-size: 11px;">{{ $kpiCancelledOut['cnt'] }} Cheque(s) cancelled/void</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    @endif
 </div>
 
 <!-- ============================================================== -->
@@ -220,8 +385,9 @@
                             <option value="Cancelled" @selected($statusFilter === 'Cancelled')>Cancelled</option>
                         @else
                             <option value="Issued" @selected($statusFilter === 'Issued')>Issued (Pending Clearance)</option>
-                            <option value="Realized" @selected($statusFilter === 'Realized')>Realized (Released / Cleared)</option>
-                            <option value="Returned" @selected($statusFilter === 'Returned')>Returned / Cancelled</option>
+                            <option value="Realized" @selected($statusFilter === 'Realized')>Realized (Cleared & Debited)</option>
+                            <option value="Returned" @selected($statusFilter === 'Returned')>Returned (Bounced Out)</option>
+                            <option value="Cancelled" @selected($statusFilter === 'Cancelled')>Cancelled / Void</option>
                         @endif
                     </select>
                 </div>

@@ -70,6 +70,33 @@ class BankController extends Controller
         return redirect()->route('banks.index')->with('success', 'Bank account registered successfully!');
     }
 
+    public function quickStore(Request $request)
+    {
+        $validated = $request->validate([
+            'bank_name' => 'required|string|max:255',
+            'account_name' => 'required|string|max:255',
+            'account_number' => 'required|string|max:100',
+            'branch' => 'nullable|string|max:255',
+            'opening_balance' => 'nullable|numeric|min:0',
+        ]);
+
+        $openingBalance = (float)($request->input('opening_balance', 0));
+        $validated['opening_balance'] = $openingBalance;
+        $validated['current_balance'] = $openingBalance;
+        $validated['is_active'] = true;
+
+        $bank = Bank::create($validated);
+
+        $branchName = $bank->branch ?: 'Main';
+        return response()->json([
+            'success' => true,
+            'message' => 'Bank account registered successfully.',
+            'bank' => $bank,
+            'display_value' => "{$bank->bank_name} - {$bank->account_number} ({$branchName})",
+            'display_text' => "{$bank->bank_name} • {$bank->account_number} ({$branchName}) - Bal: Rs. " . number_format($bank->current_balance, 2)
+        ]);
+    }
+
     public function show(Bank $bank)
     {
         return redirect()->route('banks.edit', $bank);

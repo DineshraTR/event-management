@@ -371,7 +371,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @php($itemCount = 1)
+                    @php $itemCount = 1; @endphp
 
                     <!-- 1. Package Base Line Item (if package base price > 0) -->
                     @if($pkgBasePrice > 0)

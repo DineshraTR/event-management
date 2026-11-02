@@ -46,7 +46,7 @@ class EventCategoryController extends Controller
         ]);
         $validated['is_active'] = $request->has('is_active');
         EventCategory::create($validated);
-        return redirect()->route('event-categories.index')->with('success', 'Event category created successfully.');
+        return redirect()->route('event-categories.create')->with('success', 'Event category created successfully.');
     }
 
     public function show(EventCategory $eventCategory)

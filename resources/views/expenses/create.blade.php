@@ -132,7 +132,7 @@
     </div>
 @endif
 
-@if($errors->any())
+@if(isset($errors) && $errors->any())
     <div class="alert alert-danger alert-dismissible fade show mb-4 shadow-sm" role="alert" style="border-radius: 10px;">
         <div class="d-flex align-items-center gap-2 mb-1">
             <i class="bi bi-exclamation-triangle-fill"></i>
@@ -227,9 +227,14 @@
 
                         <!-- Customer Select -->
                         <div class="mb-3">
-                            <label class="form-label small fw-bold text-dark mb-1">
-                                Customer <span class="text-danger">*</span>
-                            </label>
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <label class="form-label small fw-bold text-dark mb-0">
+                                    Customer <span class="text-danger">*</span>
+                                </label>
+                                <button type="button" class="btn btn-sm btn-light border py-0 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#quickCustomerModal" style="font-size: 11px; height: 25px;">
+                                    <i class="bi bi-person-plus-fill me-1 text-primary"></i> Quick Add Customer
+                                </button>
+                            </div>
                             <select id="directCustomerId" class="form-select searchable-select" onchange="onDirectCustomerChange(this.value)">
                                 <option value="">-- Select Customer --</option>
                                 @foreach($customers as $c)
@@ -279,19 +284,39 @@
                                 <label class="form-label small fw-bold text-dark mb-1">
                                     Direct Expense Category / Type <span class="text-danger">*</span>
                                 </label>
-                                <select name="direct_category" id="directCategorySelect" class="form-select" onchange="syncDirectCategory(this.value)">
-                                    <option value="Venue & Hall Hire">Venue & Hall Hire</option>
-                                    <option value="Catering & Food Service">Catering & Food Service</option>
-                                    <option value="Decorations & Florist">Decorations & Florist</option>
-                                    <option value="Sounds, DJ & Lighting">Sounds, DJ & Lighting</option>
-                                    <option value="Photography & Videography">Photography & Videography</option>
-                                    <option value="Vehicle & Transport Logistics">Vehicle & Transport Logistics</option>
-                                    <option value="Equipment & Prop Rental">Equipment & Prop Rental</option>
-                                    <option value="Event Crew & Daily Wages">Event Crew & Daily Wages</option>
-                                    <option value="Cake & Confectionery">Cake & Confectionery</option>
-                                    <option value="Entertainment & Artists">Entertainment & Artists</option>
-                                    <option value="Other Direct Cost">Other Direct Cost</option>
-                                </select>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div style="flex: 1 1 auto; min-width: 0;">
+                                        <select name="direct_category" id="directCategorySelect" class="form-select" onchange="syncDirectCategory(this.value)">
+                                            <option value="Venue & Hall Hire">Venue & Hall Hire</option>
+                                            <option value="Catering & Food Service">Catering & Food Service</option>
+                                            <option value="Decorations & Florist">Decorations & Florist</option>
+                                            <option value="Sounds, DJ & Lighting">Sounds, DJ & Lighting</option>
+                                            <option value="Photography & Videography">Photography & Videography</option>
+                                            <option value="Vehicle & Transport Logistics">Vehicle & Transport Logistics</option>
+                                            <option value="Equipment & Prop Rental">Equipment & Prop Rental</option>
+                                            <option value="Event Crew & Daily Wages">Event Crew & Daily Wages</option>
+                                            <option value="Cake & Confectionery">Cake & Confectionery</option>
+                                            <option value="Entertainment & Artists">Entertainment & Artists</option>
+                                            <option value="Other Direct Cost">Other Direct Cost</option>
+                                            @foreach($categories as $cat)
+                                                @if(!in_array($cat->name, [
+                                                    'Venue & Hall Hire', 'Catering & Food Service', 'Decorations & Florist',
+                                                    'Sounds, DJ & Lighting', 'Photography & Videography', 'Vehicle & Transport Logistics',
+                                                    'Equipment & Prop Rental', 'Event Crew & Daily Wages', 'Cake & Confectionery',
+                                                    'Entertainment & Artists', 'Other Direct Cost'
+                                                ]))
+                                                    <option value="{{ $cat->name }}" {{ old('category') == $cat->name ? 'selected' : '' }}>
+                                                        {{ $cat->name }}
+                                                    </option>
+                                                @endif
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <button type="button" class="btn btn-primary d-flex align-items-center gap-1.5 px-3 flex-shrink-0 text-nowrap text-white" 
+                                            data-bs-toggle="modal" data-bs-target="#addCategoryModal" title="Create New Category" style="height: 38px; border-radius: 8px;">
+                                        <i class="bi bi-plus-lg text-white"></i>
+                                    </button>
+                                </div>
                                 <small class="text-muted d-block mt-1" style="font-size: 11px;">Categorizes the direct event cost in profit & loss accounts.</small>
                             </div>
 
@@ -395,9 +420,9 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    <a href="{{ route('banks.create') }}" target="_blank" class="btn btn-outline-secondary d-flex align-items-center text-nowrap" style="font-size: 12px;">
+                                    <button type="button" class="btn btn-outline-secondary d-flex align-items-center text-nowrap" style="font-size: 12px;" data-bs-toggle="modal" data-bs-target="#quickBankModal">
                                         <i class="bi bi-plus-lg me-1"></i> Add Bank
-                                    </a>
+                                    </button>
                                 </div>
                                 <small class="text-muted d-block mt-1" style="font-size: 11px;">Account from which funds were withdrawn.</small>
                             </div>
@@ -450,37 +475,127 @@
 <!-- ============================================== -->
 <!-- POPUP MODAL: ADD NEW EXPENSE CATEGORY          -->
 <!-- ============================================== -->
-<div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel" aria-hidden="true">
+<div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel" aria-hidden="true" style="z-index: 1060;">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow" style="border-radius: 12px; overflow: hidden;">
-            <div class="modal-header bg-light py-3">
-                <h6 class="modal-title fw-bold text-dark mb-0 d-flex align-items-center gap-2" id="addCategoryModalLabel">
-                    <i class="bi bi-folder-plus text-primary"></i> Add New Expense Category
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <h6 class="modal-title fw-bold text-white mb-0 d-flex align-items-center gap-2" id="addCategoryModalLabel">
+                    <i class="bi bi-folder-plus text-warning"></i> Add New Expense Category
                 </h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="quickCategoryForm" onsubmit="event.preventDefault(); saveCategoryAjax();">
+                <div class="modal-body p-4">
+                    <div id="categoryModalAlert" class="alert alert-danger alert-permanent d-none py-2 px-3 small" style="border-radius: 8px;"></div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">
+                            Category Name <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" id="modalCategoryName" class="form-control" placeholder="e.g. Office Refreshments, Staff Uniforms..." required autocomplete="off">
+                        <small class="text-muted" style="font-size: 11px;">Unique category name for accounting & reporting.</small>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold text-dark mb-1">
+                            Description (Optional)
+                        </label>
+                        <textarea id="modalCategoryDesc" class="form-control" rows="2" placeholder="Brief note about what this category covers..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2 px-4">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-semibold" id="btnSaveCategory">
+                        <i class="bi bi-check2 me-1"></i> Save Category
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================== -->
+<!-- POPUP MODAL: QUICK ADD CUSTOMER                -->
+<!-- ============================================== -->
+<div class="modal fade" id="quickCustomerModal" tabindex="-1" aria-labelledby="quickCustomerModalLabel" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <h6 class="modal-title fw-bold text-white mb-0 d-flex align-items-center gap-2" id="quickCustomerModalLabel">
+                    <i class="bi bi-person-plus-fill text-warning"></i> Quick Add New Customer
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
-                <div id="categoryModalAlert" class="alert alert-danger d-none py-2 px-3 small" style="border-radius: 8px;"></div>
-
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-dark mb-1">
-                        Category Name <span class="text-danger">*</span>
-                    </label>
-                    <input type="text" id="modalCategoryName" class="form-control" placeholder="e.g. Office Refreshments, Staff Uniforms..." required>
-                    <small class="text-muted" style="font-size: 11px;">Unique category name for accounting.</small>
-                </div>
-
-                <div class="mb-2">
-                    <label class="form-label small fw-bold text-dark mb-1">
-                        Description (Optional)
-                    </label>
-                    <textarea id="modalCategoryDesc" class="form-control" rows="2" placeholder="Brief note about what this category covers..."></textarea>
-                </div>
+                <div id="quickCustomerAlert" class="alert alert-danger alert-permanent d-none py-2 px-3 small" style="border-radius: 8px;"></div>
+                <form id="quickCustomerForm" onsubmit="event.preventDefault(); saveQuickCustomerAjax();">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Customer Name <span class="text-danger">*</span></label>
+                        <input type="text" id="quickCustName" class="form-control" placeholder="e.g. Ruwan Silva" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Phone Number</label>
+                        <input type="text" id="quickCustPhone" class="form-control" placeholder="e.g. +94 77 123 4567">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold text-dark mb-1">Email Address</label>
+                        <input type="email" id="quickCustEmail" class="form-control" placeholder="e.g. ruwan@example.com">
+                    </div>
+                </form>
             </div>
             <div class="modal-footer bg-light py-2 px-4">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary btn-sm fw-semibold" id="btnSaveCategory" onclick="saveCategoryAjax()">
-                    <i class="bi bi-check2 me-1"></i> Save Category
+                <button type="button" class="btn btn-primary btn-sm fw-semibold" id="btnSaveQuickCust" onclick="saveQuickCustomerAjax()">
+                    <i class="bi bi-check-lg me-1"></i> Save & Select Customer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================== -->
+<!-- POPUP MODAL: QUICK ADD BANK ACCOUNT            -->
+<!-- ============================================== -->
+<div class="modal fade" id="quickBankModal" tabindex="-1" aria-labelledby="quickBankModalLabel" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <h6 class="modal-title fw-bold text-white mb-0 d-flex align-items-center gap-2" id="quickBankModalLabel">
+                    <i class="bi bi-bank text-warning"></i> Quick Register Bank Account
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="quickBankModalAlert" class="alert alert-danger alert-permanent d-none py-2 px-3 small" style="border-radius: 8px;"></div>
+                <form id="quickBankForm" onsubmit="event.preventDefault(); saveQuickBankAjax('expenseBankSelect');">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Bank Name <span class="text-danger">*</span></label>
+                        <input type="text" id="modalBankName" class="form-control" placeholder="e.g. Bank of Ceylon, Commercial Bank..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Account Holder Name <span class="text-danger">*</span></label>
+                        <input type="text" id="modalAccountName" class="form-control" placeholder="e.g. PUBUDU ISHANTHA" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">Account Number <span class="text-danger">*</span></label>
+                        <input type="text" id="modalAccountNumber" class="form-control font-monospace" placeholder="e.g. 86952315" required>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Branch Name</label>
+                            <input type="text" id="modalBranch" class="form-control" placeholder="e.g. Colombo Main">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Opening Balance (Rs.)</label>
+                            <input type="number" step="0.01" min="0" id="modalOpeningBalance" class="form-control font-monospace" placeholder="0.00" value="0">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer bg-light py-2 px-4">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm fw-semibold" id="btnSaveQuickBank" onclick="saveQuickBankAjax('expenseBankSelect')">
+                    <i class="bi bi-check-lg me-1"></i> Save & Select Bank
                 </button>
             </div>
         </div>
@@ -647,77 +762,377 @@
     }
 
     // AJAX Save New Category
-    function saveCategoryAjax() {
+    window.saveCategoryAjax = function() {
         const nameInput = document.getElementById('modalCategoryName');
         const descInput = document.getElementById('modalCategoryDesc');
         const alertBox = document.getElementById('categoryModalAlert');
         const btnSave = document.getElementById('btnSaveCategory');
 
+        if (!nameInput) {
+            console.error('modalCategoryName element not found');
+            return;
+        }
+
         const name = nameInput.value.trim();
-        const desc = descInput.value.trim();
+        const desc = descInput ? descInput.value.trim() : '';
+
+        const showAlert = function(msg) {
+            if (alertBox) {
+                alertBox.classList.remove('d-none');
+                alertBox.innerText = msg;
+            } else {
+                alert(msg);
+            }
+        };
 
         if (!name) {
-            alertBox.classList.remove('d-none');
-            alertBox.innerText = 'Please enter a category name.';
+            showAlert('Please enter a category name.');
             nameInput.focus();
             return;
         }
 
-        alertBox.classList.add('d-none');
-        btnSave.disabled = true;
-        btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving...';
+        if (alertBox) alertBox.classList.add('d-none');
+        if (btnSave) {
+            btnSave.disabled = true;
+            btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving...';
+        }
+
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '{{ csrf_token() }}';
 
         fetch("{{ route('expense-categories.quick-store') }}", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json'
             },
-            body: JSON.stringify({ name: name, description: desc })
+            body: JSON.stringify({
+                _token: csrfToken,
+                name: name,
+                description: desc
+            })
         })
-        .then(response => response.json().then(data => ({ status: response.status, body: data })))
-        .then(res => {
-            btnSave.disabled = false;
-            btnSave.innerHTML = '<i class="bi bi-check2 me-1"></i> Save Category';
+        .then(async function(res) {
+            const rawText = await res.text();
+            try {
+                return JSON.parse(rawText);
+            } catch (parseErr) {
+                console.error('Response is not valid JSON:', rawText);
+                throw new Error('Server returned an unexpected response. Please try again.');
+            }
+        })
+        .then(function(data) {
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i class="bi bi-check2 me-1"></i> Save Category';
+            }
 
-            if (res.status === 200 && res.body.success) {
-                const newCat = res.body.category;
-                const select = document.getElementById('normalCategorySelect');
+            if (data && data.success && data.category) {
+                const newCat = data.category;
+                const catName = newCat.name;
 
-                // Append new option
-                const opt = document.createElement('option');
-                opt.value = newCat.name;
-                opt.text = newCat.name;
-                opt.selected = true;
-                select.appendChild(opt);
+                // 1. Update Normal Category Select
+                const normalSelect = document.getElementById('normalCategorySelect');
+                if (normalSelect) {
+                    let exists = false;
+                    for (let i = 0; i < normalSelect.options.length; i++) {
+                        if (normalSelect.options[i].value === catName) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        normalSelect.add(new Option(catName, catName, true, true));
+                    }
+                    normalSelect.value = catName;
+                    if (typeof jQuery !== 'undefined') {
+                        jQuery(normalSelect).val(catName).trigger('change');
+                        try { jQuery(normalSelect).trigger('change.select2'); } catch(e){}
+                    } else {
+                        normalSelect.dispatchEvent(new Event('change'));
+                    }
+                }
 
-                syncNormalCategory(newCat.name);
+                // 2. Update Direct Category Select
+                const directSelect = document.getElementById('directCategorySelect');
+                if (directSelect) {
+                    let exists = false;
+                    for (let i = 0; i < directSelect.options.length; i++) {
+                        if (directSelect.options[i].value === catName) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        directSelect.add(new Option(catName, catName, true, true));
+                    }
+                    directSelect.value = catName;
+                    if (typeof jQuery !== 'undefined') {
+                        jQuery(directSelect).val(catName).trigger('change');
+                        try { jQuery(directSelect).trigger('change.select2'); } catch(e){}
+                    } else {
+                        directSelect.dispatchEvent(new Event('change'));
+                    }
+                }
 
-                if (typeof jQuery !== 'undefined' && jQuery(select).hasClass('select2-hidden-accessible')) {
-                    jQuery(select).val(newCat.name).trigger('change.select2');
+                // 3. Update the hidden unified category input submitted with the form
+                const unifiedInput = document.getElementById('unifiedCategoryInput');
+                if (unifiedInput) {
+                    unifiedInput.value = catName;
                 }
 
                 // Reset modal inputs & close
                 nameInput.value = '';
-                descInput.value = '';
+                if (descInput) descInput.value = '';
+                
                 const modalEl = document.getElementById('addCategoryModal');
-                const modalInstance = bootstrap.Modal.getInstance(modalEl);
-                if (modalInstance) {
-                    modalInstance.hide();
+                if (modalEl) {
+                    if (window.bootstrap && bootstrap.Modal) {
+                        const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        if (modalInstance) modalInstance.hide();
+                    } else if (typeof jQuery !== 'undefined') {
+                        jQuery(modalEl).modal('hide');
+                    }
                 }
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('padding-right');
+                document.body.style.removeProperty('overflow');
             } else {
-                alertBox.classList.remove('d-none');
-                alertBox.innerText = res.body.message || (res.body.errors ? Object.values(res.body.errors).flat().join(', ') : 'Failed to save category.');
+                let errMsg = (data && data.message) ? data.message : 'Failed to save category.';
+                if (data && data.errors) {
+                    errMsg = Object.values(data.errors).flat().join(', ');
+                }
+                showAlert(errMsg);
             }
         })
-        .catch(err => {
-            btnSave.disabled = false;
-            btnSave.innerHTML = '<i class="bi bi-check2 me-1"></i> Save Category';
-            alertBox.classList.remove('d-none');
-            alertBox.innerText = 'Network error while saving category.';
+        .catch(function(err) {
+            console.error('Error in saveCategoryAjax:', err);
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i class="bi bi-check2 me-1"></i> Save Category';
+            }
+            showAlert(err.message || 'Network error while saving category.');
         });
-    }
+    };
+
+    // AJAX Save Quick Customer
+    window.saveQuickCustomerAjax = function() {
+        const nameInput = document.getElementById('quickCustName');
+        const phoneInput = document.getElementById('quickCustPhone');
+        const emailInput = document.getElementById('quickCustEmail');
+        const alertBox = document.getElementById('quickCustomerAlert');
+        const btnSave = document.getElementById('btnSaveQuickCust');
+
+        const name = nameInput ? nameInput.value.trim() : '';
+        const phone = phoneInput ? phoneInput.value.trim() : '';
+        const email = emailInput ? emailInput.value.trim() : '';
+
+        const showAlert = function(msg) {
+            if (alertBox) {
+                alertBox.classList.remove('d-none');
+                alertBox.innerText = msg;
+            } else {
+                alert(msg);
+            }
+        };
+
+        if (!name) {
+            showAlert('Customer name is required.');
+            if (nameInput) nameInput.focus();
+            return;
+        }
+
+        if (alertBox) alertBox.classList.add('d-none');
+        if (btnSave) {
+            btnSave.disabled = true;
+            btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+        }
+
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '{{ csrf_token() }}';
+
+        fetch('{{ route("customers.quick-store") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ name, phone, email, _token: csrfToken })
+        })
+        .then(async function(res) {
+            const rawText = await res.text();
+            try {
+                return JSON.parse(rawText);
+            } catch (e) {
+                throw new Error('Server returned an unexpected response.');
+            }
+        })
+        .then(function(data) {
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Select Customer';
+            }
+
+            if (data && data.success && data.customer) {
+                const customerSelect = document.getElementById('directCustomerId');
+                const optText = `${data.customer.name} (${data.customer.phone || 'No phone'})`;
+
+                if (customerSelect) {
+                    if (typeof jQuery !== 'undefined') {
+                        const $select = jQuery(customerSelect);
+                        $select.append(new Option(optText, data.customer.id, true, true));
+                        $select.val(data.customer.id).trigger('change');
+                    } else {
+                        const opt = new Option(optText, data.customer.id, true, true);
+                        customerSelect.add(opt);
+                        customerSelect.value = data.customer.id;
+                        customerSelect.dispatchEvent(new Event('change'));
+                    }
+                }
+
+                onDirectCustomerChange(data.customer.id);
+
+                const modalEl = document.getElementById('quickCustomerModal');
+                if (modalEl) {
+                    if (window.bootstrap && bootstrap.Modal) {
+                        const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        if (modalInstance) modalInstance.hide();
+                    } else if (typeof jQuery !== 'undefined') {
+                        jQuery(modalEl).modal('hide');
+                    }
+                }
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                const formEl = document.getElementById('quickCustomerForm');
+                if (formEl) formEl.reset();
+            } else {
+                showAlert((data && data.message) ? data.message : 'Failed to save customer.');
+            }
+        })
+        .catch(function(err) {
+            console.error('Error in saveQuickCustomerAjax:', err);
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Select Customer';
+            }
+            showAlert(err.message || 'Network error while saving customer.');
+        });
+    };
+
+    // AJAX Save Quick Bank
+    window.saveQuickBankAjax = function(targetSelectId = 'expenseBankSelect') {
+        const bankNameInput = document.getElementById('modalBankName');
+        const accountNameInput = document.getElementById('modalAccountName');
+        const accountNumberInput = document.getElementById('modalAccountNumber');
+        const branchInput = document.getElementById('modalBranch');
+        const openingBalanceInput = document.getElementById('modalOpeningBalance');
+        const alertBox = document.getElementById('quickBankModalAlert');
+        const btnSave = document.getElementById('btnSaveQuickBank');
+
+        const bankName = bankNameInput ? bankNameInput.value.trim() : '';
+        const accountName = accountNameInput ? accountNameInput.value.trim() : '';
+        const accountNumber = accountNumberInput ? accountNumberInput.value.trim() : '';
+        const branch = branchInput ? branchInput.value.trim() : '';
+        const openingBalance = (openingBalanceInput && openingBalanceInput.value.trim()) ? openingBalanceInput.value.trim() : 0;
+
+        const showAlert = function(msg) {
+            if (alertBox) {
+                alertBox.classList.remove('d-none');
+                alertBox.innerText = msg;
+            } else {
+                alert(msg);
+            }
+        };
+
+        if (!bankName || !accountName || !accountNumber) {
+            showAlert('Bank Name, Account Holder Name, and Account Number are required.');
+            return;
+        }
+
+        if (alertBox) alertBox.classList.add('d-none');
+        if (btnSave) {
+            btnSave.disabled = true;
+            btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+        }
+
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '{{ csrf_token() }}';
+
+        fetch("{{ route('banks.quick-store') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                _token: csrfToken,
+                bank_name: bankName,
+                account_name: accountName,
+                account_number: accountNumber,
+                branch: branch,
+                opening_balance: openingBalance
+            })
+        })
+        .then(async function(res) {
+            const rawText = await res.text();
+            try {
+                return JSON.parse(rawText);
+            } catch (e) {
+                throw new Error('Server returned an unexpected response.');
+            }
+        })
+        .then(function(data) {
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Select Bank';
+            }
+
+            if (data && data.success && data.bank) {
+                const selectEl = document.getElementById(targetSelectId);
+                if (selectEl) {
+                    const optVal = data.display_value;
+                    const optText = data.display_text;
+                    if (typeof jQuery !== 'undefined') {
+                        const $select = jQuery(selectEl);
+                        $select.append(new Option(optText, optVal, true, true));
+                        $select.val(optVal).trigger('change');
+                    } else {
+                        selectEl.add(new Option(optText, optVal, true, true));
+                        selectEl.value = optVal;
+                        selectEl.dispatchEvent(new Event('change'));
+                    }
+                }
+
+                const modalEl = document.getElementById('quickBankModal');
+                if (modalEl) {
+                    if (window.bootstrap && bootstrap.Modal) {
+                        const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        if (modalInstance) modalInstance.hide();
+                    } else if (typeof jQuery !== 'undefined') {
+                        jQuery(modalEl).modal('hide');
+                    }
+                }
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                const formEl = document.getElementById('quickBankForm');
+                if (formEl) formEl.reset();
+            } else {
+                showAlert((data && data.message) ? data.message : 'Failed to save bank.');
+            }
+        })
+        .catch(function(err) {
+            console.error('Error in saveQuickBankAjax:', err);
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Select Bank';
+            }
+            showAlert(err.message || 'Network error while saving bank account.');
+        });
+    };
 
     function resetExpenseForm() {
         document.getElementById('customerOrdersList').classList.add('d-none');

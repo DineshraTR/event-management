@@ -78,7 +78,7 @@
                 @forelse($orders as $order)
                     <tr>
                         <td>
-                            <a href="{{ route('orders.show', $order) }}" class="fw-bold">
+                            <a href="{{ route('orders.show', $order) }}" class="fw-bold" target="_blank">
                                 {{ $order->order_no }}
                             </a>
                         </td>

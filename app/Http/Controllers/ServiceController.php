@@ -49,7 +49,7 @@ class ServiceController extends Controller
         ]);
         $validated['is_active'] = $request->has('is_active');
         Service::create($validated);
-        return redirect()->route('services.index')->with('success', 'Service created successfully.');
+        return redirect()->route('services.create')->with('success', 'Service created successfully.');
     }
 
     public function show(Service $service)

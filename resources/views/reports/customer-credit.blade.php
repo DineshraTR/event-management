@@ -52,7 +52,7 @@
                 @forelse($customers as $row)
                     <tr>
                         <td>
-                            <a href="{{ route('customers.show', $row['customer']) }}" class="fw-bold">
+                            <a href="{{ route('customers.show', $row['customer']) }}" class="fw-bold" target="_blank">
                                 {{ $row['customer']->name }}
                             </a>
                         </td>

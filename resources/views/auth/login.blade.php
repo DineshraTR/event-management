@@ -343,10 +343,31 @@
                 </div>
 
                 <!-- Session & Error Alerts -->
+                @if(session('success'))
+                    <div class="alert alert-success py-2 px-3 small rounded-3 mb-4 d-flex align-items-center gap-2" style="border-radius: 12px; background-color: #f0fdf4; border-color: #bbf7d0; color: #166534;">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span>{{ session('success') }}</span>
+                    </div>
+                @endif
+
                 @if(session('info'))
                     <div class="alert alert-info py-2 px-3 small rounded-3 mb-4 d-flex align-items-center gap-2" style="border-radius: 12px; background-color: #eff6ff; border-color: #bfdbfe; color: #1e40af;">
                         <i class="fa-solid fa-circle-info"></i>
                         <span>{{ session('info') }}</span>
+                    </div>
+                @endif
+
+                @if(session('status'))
+                    <div class="alert alert-info py-2 px-3 small rounded-3 mb-4 d-flex align-items-center gap-2" style="border-radius: 12px; background-color: #eff6ff; border-color: #bfdbfe; color: #1e40af;">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>{{ session('status') }}</span>
+                    </div>
+                @endif
+
+                @if(session('error'))
+                    <div class="alert alert-danger py-2 px-3 small rounded-3 mb-4 d-flex align-items-center gap-2" style="border-radius: 12px; background-color: #fef2f2; border-color: #fecaca; color: #991b1b;">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span>{{ session('error') }}</span>
                     </div>
                 @endif
 
@@ -357,12 +378,12 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('login.post') }}" name="login_form">
+                <form method="POST" action="{{ route('login.post') }}" name="login_form" id="loginForm">
                     @csrf
 
                     <!-- Username Field -->
                     <div class="form-group">
-                        <label class="form-label">USERNAME</label>
+                        <label class="form-label">USERNAME OR EMAIL</label>
                         <div class="input-group @error('username') is-invalid-group @enderror">
                             <span class="input-group-text"><i class="fa-regular fa-envelope"></i></span>
                             <input class="form-control" 
@@ -404,7 +425,7 @@
                     <!-- Remember Session Checkbox -->
                     <div class="d-flex align-items-center justify-content-between mb-4 mt-2">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="remember" id="remember" checked>
+                            <input class="form-check-input" type="checkbox" name="remember" id="remember" value="1" checked>
                             <label class="form-check-label text-muted" for="remember" style="font-size: 0.9rem; cursor: pointer;">
                                 Remember session
                             </label>
@@ -415,16 +436,22 @@
                     </div>
 
                     <!-- Submit Button -->
-                    <button class="btn btn-primary" type="submit">
-                        Access Dashboard <i class="fa-solid fa-arrow-right ms-2"></i>
+                    <button class="btn btn-primary" type="submit" id="submitLoginBtn">
+                        <span id="submitBtnText">Access Dashboard <i class="fa-solid fa-arrow-right ms-2"></i></span>
                     </button>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Script for password toggle -->
+    <!-- Script for password toggle & form UX -->
     <script>
+        function fillCredentials(user, pass) {
+            document.getElementById('username').value = user;
+            document.getElementById('password').value = pass;
+            document.getElementById('password').focus();
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             const toggleBtn = document.getElementById('togglePasswordBtn');
             const pwdInput = document.getElementById('password');
@@ -441,6 +468,17 @@
                         toggleIcon.classList.remove('fa-eye-slash');
                         toggleIcon.classList.add('fa-eye');
                     }
+                });
+            }
+
+            const loginForm = document.getElementById('loginForm');
+            const submitBtn = document.getElementById('submitLoginBtn');
+            const submitBtnText = document.getElementById('submitBtnText');
+
+            if (loginForm && submitBtn && submitBtnText) {
+                loginForm.addEventListener('submit', function () {
+                    submitBtn.disabled = true;
+                    submitBtnText.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Authenticating...';
                 });
             }
         });

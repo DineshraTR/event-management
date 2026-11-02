@@ -21,10 +21,12 @@ use App\Http\Controllers\BankController;
 use App\Http\Controllers\ChequeController;
 use App\Http\Controllers\ExpenseCategoryController;
 
-// Public Auth Routes
-Route::get('login', [AuthController::class, 'showLoginForm'])->name('login');
-Route::post('login', [AuthController::class, 'login'])->name('login.post');
-Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+// Guest Auth Routes
+Route::middleware('guest')->group(function () {
+    Route::get('login', [AuthController::class, 'showLoginForm'])->name('login');
+    Route::post('login', [AuthController::class, 'login'])->name('login.post');
+});
+Route::post('logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
 // Authenticated Application Routes
 Route::middleware('auth')->group(function () {
@@ -37,6 +39,7 @@ Route::middleware('auth')->group(function () {
 
     // Masters / Settings
     Route::middleware('role:Admin,Manager')->group(function () {
+        Route::post('banks/quick-store', [BankController::class, 'quickStore'])->name('banks.quick-store');
         Route::resource('banks', BankController::class);
         Route::post('banks/{bank}/toggle-status', [BankController::class, 'toggleStatus'])->name('banks.toggle-status');
     });
@@ -85,6 +88,7 @@ Route::middleware('auth')->group(function () {
 
     // Expenses
     Route::post('expenses/categories/quick-store', [ExpenseController::class, 'quickStoreCategory'])->name('expense-categories.quick-store');
+    Route::post('expense-categories/quick-store', [ExpenseController::class, 'quickStoreCategory'])->name('expense-categories.quick-store-alias');
     Route::resource('expenses', ExpenseController::class);
 
     // Bank/Cash Book

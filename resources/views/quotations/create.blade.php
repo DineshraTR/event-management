@@ -622,17 +622,36 @@
 
             if (data.success && data.customer) {
                 const customerSelect = document.getElementById('customerId');
-                const opt = new Option(`${data.customer.name} (${data.customer.phone || 'No phone'})`, data.customer.id, true, true);
-                customerSelect.add(opt);
+                const optText = `${data.customer.name} (${data.customer.phone || 'No phone'})`;
+                
+                if (typeof jQuery !== 'undefined') {
+                    const $select = jQuery(customerSelect);
+                    $select.append(new Option(optText, data.customer.id, true, true));
+                    $select.val(data.customer.id).trigger('change');
+                } else {
+                    const opt = new Option(optText, data.customer.id, true, true);
+                    customerSelect.add(opt);
+                    customerSelect.value = data.customer.id;
+                    customerSelect.dispatchEvent(new Event('change'));
+                }
 
                 const eventNameInput = document.getElementById('eventName');
-                if (!eventNameInput.value) {
+                if (eventNameInput && !eventNameInput.value) {
                     eventNameInput.value = data.customer.name + ' Event';
                 }
 
                 const modalEl = document.getElementById('quickCustomerModal');
-                const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-                modal.hide();
+                if (window.bootstrap && bootstrap.Modal) {
+                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    modal.hide();
+                } else if (typeof jQuery !== 'undefined') {
+                    jQuery(modalEl).modal('hide');
+                }
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('padding-right');
+                document.body.style.removeProperty('overflow');
+
                 document.getElementById('quickCustomerForm').reset();
                 alertBox.classList.add('d-none');
             } else {

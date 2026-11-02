@@ -25,6 +25,12 @@ class CheckSessionSecurity
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
 
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Your account has been deactivated. Please contact an administrator.'
+                    ], 403);
+                }
+
                 return redirect()->route('login')->withErrors([
                     'username' => 'Your account has been deactivated. Please contact an administrator.',
                 ]);
@@ -34,10 +40,16 @@ class CheckSessionSecurity
             $sessionAgent = $request->session()->get('login_user_agent');
             $currentAgent = $request->userAgent();
 
-            if ($sessionAgent && $sessionAgent !== $currentAgent) {
+            if (!empty($sessionAgent) && !empty($currentAgent) && $sessionAgent !== $currentAgent) {
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Security alert: Session invalidated due to client environment mismatch. Please sign in again.'
+                    ], 401);
+                }
 
                 return redirect()->route('login')->withErrors([
                     'username' => 'Security alert: Session invalidated due to client environment mismatch. Please sign in again.',
@@ -53,6 +65,12 @@ class CheckSessionSecurity
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Your session has expired due to inactivity. Please log in again.'
+                    ], 401);
+                }
 
                 return redirect()->route('login')->with('info', 'Your session has expired due to inactivity. Please log in again.');
             }
