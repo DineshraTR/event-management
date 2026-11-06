@@ -291,70 +291,147 @@
                     </div>
                 </div>
 
-                <!-- Section 2: Package Selection & Pricing (From Event Register) -->
+                <!-- Section 2: Package Selection & Pricing (Multi-Package Table) -->
                 @php
-                    $basePackageItem = $order->services->first(fn($s) => $s->is_package_item || str_contains($s->description, '(Base Package)'));
-                    $initPkgServices = $order->event?->subCategory?->subCategoryServices ?? collect();
-                    $initPackageSellPrice = old('package_sell_price', $order->package_sell_price > 0 ? $order->package_sell_price : ($basePackageItem?->unit_price ?? ($order->event?->package_sell_price ?? 0)));
-                    $initPackageName = old('package_name', $order->package_name ?: ($order->event?->subCategory?->name ?? ''));
+                    $initOrderPackages = [];
+                    if (old('packages')) {
+                        $initOrderPackages = old('packages');
+                    } elseif ($order->packages && $order->packages->isNotEmpty()) {
+                        $initOrderPackages = $order->packages->map(fn($p) => [
+                            'event_package_id' => $p->event_package_id,
+                            'event_sub_category_id' => $p->event_sub_category_id,
+                            'category_name' => $p->subCategory?->category?->name ?? 'General',
+                            'package_name' => $p->package_name,
+                            'cost_price' => (float)$p->cost_price,
+                            'sell_price' => (float)$p->sell_price,
+                            'qty' => $p->qty ?? 1,
+                            'total_price' => (float)$p->total_price,
+                            'services' => $p->subCategory?->subCategoryServices->map(fn($s) => [
+                                'name' => $s->service?->name ?? 'Service',
+                                'qty' => $s->qty
+                            ])->toArray() ?? []
+                        ])->toArray();
+                    } elseif ($order->event?->packages && $order->event->packages->isNotEmpty()) {
+                        $initOrderPackages = $order->event->packages->map(fn($p) => [
+                            'event_package_id' => $p->id,
+                            'event_sub_category_id' => $p->event_sub_category_id,
+                            'category_name' => $p->subCategory?->category?->name ?? 'General',
+                            'package_name' => $p->package_name,
+                            'cost_price' => (float)$p->cost_price,
+                            'sell_price' => (float)$p->sell_price,
+                            'qty' => $p->qty ?? 1,
+                            'total_price' => (float)$p->total_price,
+                            'services' => $p->subCategory?->subCategoryServices->map(fn($s) => [
+                                'name' => $s->service?->name ?? 'Service',
+                                'qty' => $s->qty
+                            ])->toArray() ?? []
+                        ])->toArray();
+                    } elseif ($order->package_sell_price > 0 || $order->event?->subCategory) {
+                        $initOrderPackages = [[
+                            'event_package_id' => null,
+                            'event_sub_category_id' => $order->event_sub_category_id,
+                            'category_name' => $order->event?->subCategory?->category?->name ?? 'General',
+                            'package_name' => $order->package_name ?? $order->event?->subCategory?->name ?? 'Event Package',
+                            'cost_price' => (float)($order->package_cost_price ?? 0),
+                            'sell_price' => (float)($order->package_sell_price ?? 0),
+                            'qty' => 1,
+                            'total_price' => (float)($order->package_sell_price ?? 0),
+                            'services' => $order->event?->subCategory?->subCategoryServices->map(fn($s) => [
+                                'name' => $s->service?->name ?? 'Service',
+                                'qty' => $s->qty
+                            ])->toArray() ?? []
+                        ]];
+                    }
                 @endphp
                 <div class="custom-section-box">
-                    <div class="form-section-title">
-                        <i class="bi bi-box-seam-fill"></i>
-                        <span>Package Selection & Pricing</span>
+                    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                        <div class="form-section-title mb-0">
+                            <i class="bi bi-box-seam-fill"></i>
+                            <span>Package Selection & Pricing</span>
+                        </div>
+                        <span class="badge bg-secondary-subtle text-secondary border px-2.5 py-1">
+                            <i class="bi bi-layers-fill me-1"></i> Multi-Package Supported
+                        </span>
                     </div>
 
-                    <div class="row g-3">
-                        <!-- Category Display -->
-                        <div class="col-md-4">
-                            <label class="custom-input-label">
-                                <i class="bi bi-folder2-open"></i>
-                                Event Category
-                            </label>
-                            <input type="text" id="orderCategoryDisplay" class="form-control bg-light" readonly value="{{ $order->event?->subCategory?->category?->name ?? '—' }}">
-                        </div>
-
-                        <!-- Sub-Category / Package Display -->
-                        <div class="col-md-4">
-                            <label class="custom-input-label">
-                                <i class="bi bi-boxes"></i>
-                                Booked Sub-Category / Package
-                            </label>
-                            <input type="text" id="orderPackageDisplay" class="form-control bg-light fw-bold text-dark" readonly value="{{ $initPackageName ?: '—' }}">
-                            <input type="hidden" name="package_name" id="orderPackageNameInput" value="{{ $initPackageName }}">
-                        </div>
-
-                        <!-- Package Base Sell Price (Editable) -->
-                        <div class="col-md-4">
-                            <label class="custom-input-label">
-                                <i class="bi bi-cash-stack"></i>
-                                Package Base Sell Price (Rs.) <span class="text-danger">*</span>
-                            </label>
-                            <div class="input-group">
-                                <input type="number" step="0.01" min="0" name="package_sell_price" id="orderPackageSellPrice" class="form-control fw-bold text-primary" value="{{ number_format((float)$initPackageSellPrice, 2, '.', '') }}" oninput="calculateOrderTotals()">
+                    <!-- Package Selector Bar (Add Extra Package to Order) -->
+                    <div class="p-3 bg-light rounded-3 border mb-3">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <label class="custom-input-label mb-1">
+                                    <i class="bi bi-folder2-open"></i> Category
+                                </label>
+                                <select id="orderPkgCategoryId" class="form-select form-select-sm" onchange="onOrderPkgCategoryChange(this.value)">
+                                    <option value="">-- Choose Category --</option>
+                                    @foreach($categories as $cat)
+                                        <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                    @endforeach
+                                </select>
                             </div>
-                            <small class="text-muted d-block mt-1" style="font-size: 11.5px;">Auto-populated from event package; directly included in order calculation.</small>
+                            <div class="col-md-4">
+                                <label class="custom-input-label mb-1">
+                                    <i class="bi bi-boxes"></i> Package / Sub-Category
+                                </label>
+                                <select id="orderPkgSubCategoryId" class="form-select form-select-sm" onchange="onOrderPkgSubCategoryChange(this.value)">
+                                    <option value="">-- Select Category First --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="custom-input-label mb-1">
+                                    <i class="bi bi-cash-stack"></i> Price (Rs.)
+                                </label>
+                                <input type="number" step="0.01" min="0" id="orderPkgPriceInput" class="form-control form-control-sm text-end fw-semibold" value="0.00">
+                            </div>
+                            <div class="col-md-1">
+                                <label class="custom-input-label mb-1">
+                                    Qty
+                                </label>
+                                <input type="number" min="1" step="1" id="orderPkgQtyInput" class="form-control form-control-sm text-center fw-semibold" value="1">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-sm btn-dark w-100 fw-bold d-inline-flex align-items-center justify-content-center gap-1" style="height: 33px;" onclick="addSelectedOrderPackage()">
+                                    <i class="bi bi-plus-circle"></i> Add Package
+                                </button>
+                            </div>
+                        </div>
+                        <div id="orderPickerPkgServicesPreview" class="d-none mt-2 pt-2 border-top">
+                            <small class="text-muted fw-semibold me-2"><i class="bi bi-check-circle-fill text-success me-1"></i>Included in selected package:</small>
+                            <span id="orderPickerPkgServicesPills" class="d-inline-flex flex-wrap gap-1"></span>
                         </div>
                     </div>
 
-                    <!-- Package Included Services Preview Box -->
-                    <div id="packageServicesBox" class="mt-3 p-3 bg-white rounded-3 border {{ $initPkgServices->count() > 0 ? '' : 'd-none' }} shadow-sm">
-                        <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
-                            <span class="fw-bold text-dark small">
-                                <i class="bi bi-check-circle-fill text-success me-1"></i> Included in Selected Package:
-                            </span>
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="pkgSvcCountBadge">
-                                {{ $initPkgServices->count() }} Services
-                            </span>
-                        </div>
-                        <div id="packageServicesList" class="d-flex flex-wrap gap-2 pt-1">
-                            @foreach($initPkgServices as $ps)
-                                <div class="package-service-pill">
-                                    <i class="bi bi-check2-circle"></i>
-                                    <span>{{ $ps->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $ps->qty }}</strong></span>
-                                </div>
-                            @endforeach
-                        </div>
+                    <!-- Hidden container for tracking removed event package IDs -->
+                    <div id="removedEventPackagesContainer"></div>
+                    <input type="hidden" name="package_sell_price" id="orderPackageSellPrice" value="{{ old('package_sell_price', $order->package_sell_price) }}">
+                    <input type="hidden" name="package_name" id="orderPackageNameInput" value="{{ old('package_name', $order->package_name) }}">
+
+                    <!-- Packages Table -->
+                    <div class="modern-table-container">
+                        <table class="table modern-table align-middle" id="orderPackagesTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;" class="text-center">#</th>
+                                    <th>Package Details & Included Deliverables</th>
+                                    <th style="width: 150px;" class="text-end">Unit Price (Rs.)</th>
+                                    <th style="width: 90px;" class="text-center">Qty</th>
+                                    <th style="width: 160px;" class="text-end pe-4">Line Total (Rs.)</th>
+                                    <th style="width: 50px;" class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orderPackagesTbody">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                            <tfoot class="bg-light">
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold text-secondary">Total Packages Price:</td>
+                                    <td class="text-end pe-4 fw-bold text-primary fs-6" id="orderPackagesTotalDisplay">0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <div id="noOrderPackagesMsg" class="text-center py-4 bg-white border border-top-0 rounded-bottom text-muted small d-none">
+                        <i class="bi bi-info-circle me-1"></i> No packages in this order. Select an event or add packages using the picker above.
                     </div>
                 </div>
 
@@ -613,9 +690,239 @@
 <script>
     const availableServices = @json($services);
     const allEvents = @json($events);
+    const initOrderPackages = @json($initOrderPackages ?? []);
     const orderPaidAmount = {{ (float) ($order->paid_amount ?? 0) }};
+    let orderPackageIndex = 0;
     let orderServiceIndex = {{ count($existingServices) }};
     let orderChargeIndex = {{ count($existingCharges) }};
+    let currentSelectedOrderPkgDetails = null;
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return String(text).replace(/[&<>"']/g, m => map[m]);
+    }
+
+    // Category Change in Order Package Picker
+    function onOrderPkgCategoryChange(categoryId) {
+        const subSelect = document.getElementById('orderPkgSubCategoryId');
+        subSelect.innerHTML = '<option value="">-- Loading Packages... --</option>';
+        document.getElementById('orderPickerPkgServicesPreview').classList.add('d-none');
+        document.getElementById('orderPickerPkgServicesPills').innerHTML = '';
+        currentSelectedOrderPkgDetails = null;
+
+        if (!categoryId) {
+            subSelect.innerHTML = '<option value="">-- Select Category First --</option>';
+            document.getElementById('orderPkgPriceInput').value = '0.00';
+            return;
+        }
+
+        fetch(`/api/sub-categories/${categoryId}`)
+            .then(res => res.json())
+            .then(data => {
+                subSelect.innerHTML = '<option value="">-- Select Package --</option>';
+                data.forEach(sub => {
+                    const opt = document.createElement('option');
+                    opt.value = sub.id;
+                    opt.setAttribute('data-sell-price', sub.sell_price);
+                    opt.setAttribute('data-name', sub.name);
+                    opt.text = `${sub.name} (Sell: Rs. ${parseFloat(sub.sell_price).toLocaleString()})`;
+                    subSelect.appendChild(opt);
+                });
+            })
+            .catch(() => {
+                subSelect.innerHTML = '<option value="">Error loading packages</option>';
+            });
+    }
+
+    // Sub-Category Change in Order Package Picker
+    function onOrderPkgSubCategoryChange(subCategoryId) {
+        if (!subCategoryId) {
+            document.getElementById('orderPkgPriceInput').value = '0.00';
+            document.getElementById('orderPickerPkgServicesPreview').classList.add('d-none');
+            document.getElementById('orderPickerPkgServicesPills').innerHTML = '';
+            currentSelectedOrderPkgDetails = null;
+            return;
+        }
+
+        const subSelect = document.getElementById('orderPkgSubCategoryId');
+        const selectedOpt = subSelect ? subSelect.options[subSelect.selectedIndex] : null;
+        if (selectedOpt && selectedOpt.getAttribute('data-sell-price')) {
+            document.getElementById('orderPkgPriceInput').value = parseFloat(selectedOpt.getAttribute('data-sell-price')).toFixed(2);
+        }
+
+        fetch(`/api/sub-category/${subCategoryId}`)
+            .then(res => res.json())
+            .then(data => {
+                currentSelectedOrderPkgDetails = data;
+                if (data.sell_price !== undefined && data.sell_price !== null) {
+                    document.getElementById('orderPkgPriceInput').value = parseFloat(data.sell_price).toFixed(2);
+                }
+
+                const previewBox = document.getElementById('orderPickerPkgServicesPreview');
+                const pillsBox = document.getElementById('orderPickerPkgServicesPills');
+                pillsBox.innerHTML = '';
+
+                if (data.services && data.services.length > 0) {
+                    previewBox.classList.remove('d-none');
+                    data.services.forEach(svc => {
+                        const pill = document.createElement('span');
+                        pill.className = 'package-service-pill';
+                        pill.style.fontSize = '11px';
+                        pill.style.padding = '2px 7px';
+                        pill.innerHTML = `<i class="bi bi-check2-circle text-success"></i> ${svc.service_name} &bull; Qty: <strong>${svc.qty}</strong>`;
+                        pillsBox.appendChild(pill);
+                    });
+                } else {
+                    previewBox.classList.add('d-none');
+                }
+            })
+            .catch(() => {
+                currentSelectedOrderPkgDetails = null;
+            });
+    }
+
+    // Add Package from Picker to Order
+    function addSelectedOrderPackage() {
+        const catSelect = document.getElementById('orderPkgCategoryId');
+        const subSelect = document.getElementById('orderPkgSubCategoryId');
+        const priceInput = document.getElementById('orderPkgPriceInput');
+        const qtyInput = document.getElementById('orderPkgQtyInput');
+
+        const subCategoryId = subSelect.value;
+        if (!subCategoryId) {
+            alert('Please select a package first.');
+            return;
+        }
+
+        const selectedOpt = subSelect.options[subSelect.selectedIndex];
+        const packageName = selectedOpt.getAttribute('data-name') || selectedOpt.text.split('(')[0].trim();
+        const categoryName = catSelect.options[catSelect.selectedIndex]?.text || '';
+        const sellPrice = parseFloat(priceInput.value) || 0;
+        const qty = parseInt(qtyInput.value) || 1;
+        const costPrice = currentSelectedOrderPkgDetails?.cost_price ? parseFloat(currentSelectedOrderPkgDetails.cost_price) : 0;
+        const services = currentSelectedOrderPkgDetails?.services || [];
+
+        addOrderPackageRow({
+            event_package_id: null,
+            event_sub_category_id: subCategoryId,
+            category_name: categoryName,
+            package_name: packageName,
+            cost_price: costPrice,
+            sell_price: sellPrice,
+            qty: qty,
+            total_price: sellPrice * qty,
+            services: services
+        });
+
+        qtyInput.value = '1';
+    }
+
+    // Render Order Package Row in Table
+    function addOrderPackageRow(pkg) {
+        const tbody = document.getElementById('orderPackagesTbody');
+        const emptyMsg = document.getElementById('noOrderPackagesMsg');
+        if (emptyMsg) emptyMsg.classList.add('d-none');
+
+        const idx = orderPackageIndex++;
+        const sellPrice = parseFloat(pkg.sell_price || 0);
+        const qty = parseInt(pkg.qty || 1);
+        const totalPrice = parseFloat(pkg.total_price || (sellPrice * qty));
+        const services = pkg.services || [];
+        const eventPkgId = pkg.event_package_id || '';
+
+        let servicesHtml = '';
+        if (services.length > 0) {
+            servicesHtml = '<div class="d-flex flex-wrap gap-1 mt-1.5">';
+            services.forEach(s => {
+                const sName = s.name || s.service_name || 'Service';
+                servicesHtml += `<span class="package-service-pill" style="font-size: 11px; padding: 2px 7px;"><i class="bi bi-check2-circle text-success"></i> ${escapeHtml(sName)} &bull; Qty: <strong>${s.qty}</strong></span>`;
+            });
+            servicesHtml += '</div>';
+        }
+
+        const tr = document.createElement('tr');
+        tr.id = `opkg_row_${idx}`;
+        tr.innerHTML = `
+            <td class="text-center text-muted fw-bold font-num">${tbody.children.length + 1}</td>
+            <td>
+                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                    <strong class="text-dark fs-6">${escapeHtml(pkg.package_name)}</strong>
+                    ${pkg.category_name ? `<span class="badge bg-secondary-subtle text-secondary border small">${escapeHtml(pkg.category_name)}</span>` : ''}
+                    ${eventPkgId ? `<span class="badge bg-primary-subtle text-primary border small" title="Synchronized from Event profile"><i class="bi bi-link-45deg"></i> From Event</span>` : `<span class="badge bg-success-subtle text-success border small" title="Custom package added in this order"><i class="bi bi-plus-circle"></i> Added In Order</span>`}
+                </div>
+                ${servicesHtml}
+                <input type="hidden" name="packages[${idx}][event_package_id]" class="opkg-event-pkg-id" value="${eventPkgId}">
+                <input type="hidden" name="packages[${idx}][event_sub_category_id]" value="${pkg.event_sub_category_id || ''}">
+                <input type="hidden" name="packages[${idx}][package_name]" value="${escapeHtml(pkg.package_name)}">
+                <input type="hidden" name="packages[${idx}][cost_price]" value="${pkg.cost_price || 0}">
+            </td>
+            <td>
+                <input type="number" step="0.01" min="0" name="packages[${idx}][sell_price]" id="opkg_price_${idx}" class="form-control form-control-sm text-end fw-semibold" value="${sellPrice.toFixed(2)}" oninput="calcOrderPackageLine(${idx})">
+            </td>
+            <td>
+                <input type="number" min="1" step="1" name="packages[${idx}][qty]" id="opkg_qty_${idx}" class="form-control form-control-sm text-center fw-semibold" value="${qty}" oninput="calcOrderPackageLine(${idx})">
+            </td>
+            <td class="text-end pe-4 fw-bold text-dark font-num fs-6" id="opkg_line_total_${idx}">
+                ${totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <input type="hidden" name="packages[${idx}][total_price]" id="opkg_total_input_${idx}" class="opkg-line-total-val" value="${totalPrice.toFixed(2)}">
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn-action btn-action-delete mx-auto" onclick="removeOrderPackageRow(${idx}, '${eventPkgId}')" title="${eventPkgId ? 'Remove package (will also delete from event in DB)' : 'Remove package'}">
+                    <i class="bi bi-trash3"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        reindexOrderPackageRows();
+        calculateOrderTotals();
+    }
+
+    function calcOrderPackageLine(idx) {
+        const qty = parseInt(document.getElementById(`opkg_qty_${idx}`)?.value) || 1;
+        const price = parseFloat(document.getElementById(`opkg_price_${idx}`)?.value) || 0;
+        const lineTotal = qty * price;
+        const cell = document.getElementById(`opkg_line_total_${idx}`);
+        const hiddenTotal = document.getElementById(`opkg_total_input_${idx}`);
+        if (cell) {
+            cell.innerText = lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        if (hiddenTotal) {
+            hiddenTotal.value = lineTotal.toFixed(2);
+        }
+        calculateOrderTotals();
+    }
+
+    function removeOrderPackageRow(idx, eventPackageId) {
+        if (eventPackageId) {
+            const container = document.getElementById('removedEventPackagesContainer');
+            if (container) {
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'removed_event_package_ids[]';
+                hiddenInput.value = eventPackageId;
+                container.appendChild(hiddenInput);
+            }
+        }
+        document.getElementById(`opkg_row_${idx}`)?.remove();
+        reindexOrderPackageRows();
+        calculateOrderTotals();
+    }
+
+    function reindexOrderPackageRows() {
+        const tbody = document.getElementById('orderPackagesTbody');
+        const rows = tbody.querySelectorAll('tr');
+        const emptyMsg = document.getElementById('noOrderPackagesMsg');
+        if (rows.length === 0) {
+            if (emptyMsg) emptyMsg.classList.remove('d-none');
+        } else {
+            if (emptyMsg) emptyMsg.classList.add('d-none');
+            rows.forEach((row, index) => {
+                const numCell = row.querySelector('td:first-child');
+                if (numCell) numCell.innerText = index + 1;
+            });
+        }
+    }
 
     function onOrderCustomerChange(customerId) {
         filterEventsByCustomer(customerId);
@@ -669,38 +976,29 @@
                     document.getElementById('orderCustomerId').value = data.customer_id;
                 }
 
-                // 1. Update Package Selection & Pricing Card
-                const categoryEl = document.getElementById('orderCategoryDisplay');
-                if (categoryEl) categoryEl.value = data.category_name || '—';
+                // 1. Clear and populate packages
+                document.getElementById('orderPackagesTbody').innerHTML = '';
+                document.getElementById('removedEventPackagesContainer').innerHTML = '';
+                orderPackageIndex = 0;
 
-                const packageEl = document.getElementById('orderPackageDisplay');
-                if (packageEl) packageEl.value = data.package_name || '—';
-
-                const packageNameInput = document.getElementById('orderPackageNameInput');
-                if (packageNameInput) packageNameInput.value = data.package_name || '';
-
-                const packagePriceEl = document.getElementById('orderPackageSellPrice');
-                if (packagePriceEl) {
-                    packagePriceEl.value = parseFloat(data.package_sell_price || 0).toFixed(2);
-                }
-
-                // 2. Render Included Services Pills
-                const pkgBox = document.getElementById('packageServicesBox');
-                const pkgList = document.getElementById('packageServicesList');
-                const pkgBadge = document.getElementById('pkgSvcCountBadge');
-
-                if (data.package_services && data.package_services.length > 0) {
-                    pkgBox.classList.remove('d-none');
-                    pkgBadge.innerText = `${data.package_services.length} Services`;
-                    pkgList.innerHTML = data.package_services.map(ps => `
-                        <div class="package-service-pill">
-                            <i class="bi bi-check2-circle"></i>
-                            <span>${ps.name} &bull; Qty: <strong>${ps.qty}</strong></span>
-                        </div>
-                    `).join('');
+                if (data.packages && data.packages.length > 0) {
+                    data.packages.forEach(pkg => {
+                        addOrderPackageRow(pkg);
+                    });
+                } else if (data.package_name || (data.package_sell_price && parseFloat(data.package_sell_price) > 0)) {
+                    addOrderPackageRow({
+                        event_package_id: null,
+                        event_sub_category_id: null,
+                        category_name: data.category_name || 'General Category',
+                        package_name: data.package_name || 'Event Package',
+                        cost_price: 0,
+                        sell_price: parseFloat(data.package_sell_price || 0),
+                        qty: 1,
+                        total_price: parseFloat(data.package_sell_price || 0),
+                        services: data.package_services || []
+                    });
                 } else {
-                    pkgBox.classList.add('d-none');
-                    pkgList.innerHTML = '';
+                    reindexOrderPackageRows();
                 }
 
                 calculateOrderTotals();
@@ -711,16 +1009,12 @@
     }
 
     function resetOrderEventDetails() {
-        const categoryEl = document.getElementById('orderCategoryDisplay');
-        if (categoryEl) categoryEl.value = '—';
-        const packageEl = document.getElementById('orderPackageDisplay');
-        if (packageEl) packageEl.value = '—';
-        const packageNameInput = document.getElementById('orderPackageNameInput');
-        if (packageNameInput) packageNameInput.value = '';
-        const packagePriceEl = document.getElementById('orderPackageSellPrice');
-        if (packagePriceEl) packagePriceEl.value = '0.00';
-        const pkgBox = document.getElementById('packageServicesBox');
-        if (pkgBox) pkgBox.classList.add('d-none');
+        document.getElementById('orderPackagesTbody').innerHTML = '';
+        document.getElementById('removedEventPackagesContainer').innerHTML = '';
+        document.getElementById('orderPackageSellPrice').value = '0.00';
+        document.getElementById('orderPackageNameInput').value = '';
+        orderPackageIndex = 0;
+        reindexOrderPackageRows();
         calculateOrderTotals();
     }
 
@@ -851,7 +1145,20 @@
     }
 
     function calculateOrderTotals() {
-        const pkgBasePrice = parseFloat(document.getElementById('orderPackageSellPrice')?.value) || 0;
+        let packagesTotal = 0;
+        document.querySelectorAll('#orderPackagesTbody tr').forEach(row => {
+            const lineVal = parseFloat(row.querySelector('.opkg-line-total-val')?.value) || 0;
+            packagesTotal += lineVal;
+        });
+
+        const pkgSellInput = document.getElementById('orderPackageSellPrice');
+        if (pkgSellInput) {
+            pkgSellInput.value = packagesTotal.toFixed(2);
+        }
+        const pkgDisplay = document.getElementById('orderPackagesTotalDisplay');
+        if (pkgDisplay) {
+            pkgDisplay.innerText = packagesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
 
         let servicesTotal = 0;
         document.querySelectorAll('#orderServicesTbody tr').forEach(row => {
@@ -866,7 +1173,7 @@
         });
 
         const discount = parseFloat(document.getElementById('orderDiscountInput')?.value) || 0;
-        const subTotal = pkgBasePrice + servicesTotal + chargesTotal;
+        const subTotal = packagesTotal + servicesTotal + chargesTotal;
         const grandTotal = Math.max(0, subTotal - discount);
         const remainingBalance = Math.max(0, grandTotal - orderPaidAmount);
 
@@ -874,7 +1181,7 @@
         document.getElementById('orderChargesTotalDisplay').innerText = chargesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
         if (document.getElementById('calcPackageSum')) {
-            document.getElementById('calcPackageSum').innerText = 'Rs. ' + pkgBasePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('calcPackageSum').innerText = 'Rs. ' + packagesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
         document.getElementById('calcServicesSum').innerText = 'Rs. ' + servicesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('calcChargesSum').innerText = 'Rs. ' + chargesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -884,6 +1191,12 @@
 
     // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
+        if (initOrderPackages && initOrderPackages.length > 0) {
+            initOrderPackages.forEach(p => addOrderPackageRow(p));
+        } else {
+            reindexOrderPackageRows();
+        }
+
         const initialCustomerId = document.getElementById('orderCustomerId').value;
         const initialEventId = '{{ old("event_id", $order->event_id ?? "") }}';
 

@@ -51,6 +51,11 @@ class Order extends Model
         return $this->belongsTo(EventSubCategory::class, 'event_sub_category_id');
     }
 
+    public function packages(): HasMany
+    {
+        return $this->hasMany(OrderPackage::class);
+    }
+
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
@@ -81,20 +86,40 @@ class Order extends Model
         return $this->hasMany(Cheque::class);
     }
 
+    public function hasPayments(): bool
+    {
+        if ((float)$this->paid_amount > 0) {
+            return true;
+        }
+        if ($this->relationLoaded('payments')) {
+            return $this->payments->isNotEmpty();
+        }
+        return $this->payments()->exists();
+    }
+
     public function recalculateTotals(): void
     {
-        $packageItem = $this->services()->where('is_package_item', true)->first();
-        $packageSellPrice = $packageItem ? (float) $packageItem->total_price : (float) ($this->package_sell_price ?? 0);
+        $packageSellPrice = 0;
+        if ($this->packages()->exists()) {
+            $packageSellPrice = (float) $this->packages()->sum('total_price');
+            if ($packageSellPrice <= 0) {
+                $packageSellPrice = (float) $this->packages()->sum(\DB::raw('sell_price * qty'));
+            }
+        } elseif ($packageItem = $this->services()->where('is_package_item', true)->first()) {
+            $packageSellPrice = (float) $packageItem->total_price;
+        } else {
+            $packageSellPrice = (float) ($this->package_sell_price ?: ($this->event?->package_sell_price ?: ($this->event?->subCategory?->sell_price ?? 0)));
+        }
+
         $additionalServicesTotal = (float) $this->services()->where('is_package_item', false)->sum('total_price');
         $chargesTotal = (float) $this->otherCharges()->sum('amount');
         
-        $servicesTotal = (float) $this->services()->sum('total_price');
-        $subTotal = $servicesTotal + $chargesTotal;
+        $subTotal = $packageSellPrice + $additionalServicesTotal + $chargesTotal;
         if ($subTotal <= 0 && (float) $this->sub_total > 0) {
             $subTotal = (float) $this->sub_total;
         }
 
-        $totalAmount = $subTotal - (float) $this->discount;
+        $totalAmount = max(0, $subTotal - (float) $this->discount);
         if ($totalAmount <= 0 && (float) $this->total_amount > 0) {
             $totalAmount = (float) $this->total_amount;
         }
@@ -104,7 +129,7 @@ class Order extends Model
                 $q->whereNull('status')->orWhere('status', '!=', 'Returned');
             })
             ->sum('amount');
-        $balance = $totalAmount - $paidAmount;
+        $balance = max(0, $totalAmount - $paidAmount);
 
         $status = 'pending';
         if ($paidAmount >= $totalAmount) {

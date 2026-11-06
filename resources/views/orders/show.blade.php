@@ -148,13 +148,24 @@
                             </div>
                             <small class="text-muted" style="font-size: 11px;">{{ $order->event->event_date?->diffForHumans() }}</small>
                         </div>
+                        @php
+                            $orderDisplayPkgs = $order->packages && $order->packages->isNotEmpty()
+                                ? $order->packages
+                                : ($order->event?->packages && $order->event->packages->isNotEmpty()
+                                    ? $order->event->packages
+                                    : collect());
+                        @endphp
                         <div class="col-sm-6">
-                            <small class="text-muted d-block" style="font-size: 11.5px;">BOOKED PACKAGE</small>
+                            <small class="text-muted d-block" style="font-size: 11.5px;">BOOKED PACKAGE{{ $orderDisplayPkgs->count() > 1 ? 'S' : '' }}</small>
                             <div class="fw-semibold text-dark mt-1">
                                 <i class="bi bi-box-seam text-secondary me-1"></i>
-                                {{ $order->event->subCategory?->name ?? 'Custom Package' }}
-                                @if($order->event->subCategory?->category)
-                                    <span class="badge bg-light text-secondary border ms-1" style="font-size: 11px;">{{ $order->event->subCategory->category->name }}</span>
+                                @if($orderDisplayPkgs->isNotEmpty())
+                                    {{ $orderDisplayPkgs->pluck('package_name')->join(', ') }}
+                                @else
+                                    {{ $order->event->subCategory?->name ?? 'Custom Package' }}
+                                    @if($order->event->subCategory?->category)
+                                        <span class="badge bg-light text-secondary border ms-1" style="font-size: 11px;">{{ $order->event->subCategory->category->name }}</span>
+                                    @endif
                                 @endif
                             </div>
                             @if($order->event->package_sell_price > 0)
@@ -173,21 +184,49 @@
                         </div>
 
                         <!-- Included Services in Selected Package -->
-                        @if($order->event->subCategory?->subCategoryServices && $order->event->subCategory->subCategoryServices->isNotEmpty())
+                        @php
+                            $orderDeliverables = collect();
+                            if ($orderDisplayPkgs->isNotEmpty()) {
+                                foreach ($orderDisplayPkgs as $dp) {
+                                    $delivs = $dp->deliverables ?? ($dp->subCategory?->subCategoryServices->map(fn($s) => ['service_name' => $s->service?->name ?? 'Service', 'qty' => $s->qty])->toArray() ?? []);
+                                    if (!empty($delivs)) {
+                                        foreach ($delivs as $d) {
+                                            $orderDeliverables->push([
+                                                'package_name' => $dp->package_name,
+                                                'name' => $d['service_name'] ?? $d['name'] ?? 'Item',
+                                                'qty' => $d['qty'] ?? 1
+                                            ]);
+                                        }
+                                    }
+                                }
+                            } elseif ($order->event?->subCategory?->subCategoryServices && $order->event->subCategory->subCategoryServices->isNotEmpty()) {
+                                foreach ($order->event->subCategory->subCategoryServices as $ps) {
+                                    $orderDeliverables->push([
+                                        'package_name' => $order->event->subCategory->name,
+                                        'name' => $ps->service?->name ?? 'Service',
+                                        'qty' => $ps->qty
+                                    ]);
+                                }
+                            }
+                        @endphp
+                        @if($orderDeliverables->isNotEmpty())
                             <div class="col-12 mt-3 pt-3 border-top">
                                 <div class="d-flex align-items-center justify-content-between mb-2">
                                     <small class="fw-bold text-dark text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
-                                        <i class="bi bi-check-circle-fill text-success me-1"></i> Included in Selected Package:
+                                        <i class="bi bi-check-circle-fill text-success me-1"></i> Included in Selected Package(s):
                                     </small>
                                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 10.5px;">
-                                        {{ $order->event->subCategory->subCategoryServices->count() }} Services
+                                        {{ $orderDeliverables->count() }} Services
                                     </span>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2">
-                                    @foreach($order->event->subCategory->subCategoryServices as $ps)
+                                    @foreach($orderDeliverables as $deliv)
                                         <span class="badge bg-light text-dark border px-2.5 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5" style="font-size: 11.5px;">
                                             <i class="bi bi-check2-circle text-success"></i>
-                                            <span>{{ $ps->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $ps->qty }}</strong></span>
+                                            <span>{{ $deliv['name'] }} &bull; Qty: <strong>{{ $deliv['qty'] }}</strong></span>
+                                            @if($orderDisplayPkgs->count() > 1)
+                                                <small class="text-muted fw-normal">({{ $deliv['package_name'] }})</small>
+                                            @endif
                                         </span>
                                     @endforeach
                                 </div>
@@ -551,13 +590,19 @@
                         </a>
                     @endif
 
-                    <form method="POST" action="{{ route('orders.destroy', $order) }}" class="mt-2" onsubmit="return confirm('Are you sure you want to delete this order? All associated payment records may be affected.');">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-outline-danger w-100 py-2 fw-semibold">
-                            <i class="bi bi-trash3 me-1.5"></i> Delete Order
-                        </button>
-                    </form>
+                    @if(!$order->hasPayments())
+                        <form method="POST" action="{{ route('orders.destroy', $order) }}" class="mt-2" onsubmit="handleDeleteConfirmation(event, this, {
+                            type: 'Order',
+                            title: '{{ $order->order_no }}',
+                            hasPayments: false
+                        });">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-outline-danger w-100 py-2 fw-semibold">
+                                <i class="bi bi-trash3 me-1.5"></i> Delete Order
+                            </button>
+                        </form>
+                    @endif
                 </div>
             </div>
         </div>

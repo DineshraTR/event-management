@@ -296,7 +296,7 @@
                         </div>
 
                         <!-- Registration Date -->
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="custom-input-label">
                                 <i class="bi bi-calendar-event"></i>
                                 Registration Date <span class="text-danger">*</span>
@@ -305,7 +305,7 @@
                         </div>
 
                         <!-- Event Date -->
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="custom-input-label">
                                 <i class="bi bi-calendar-check"></i>
                                 Event Date <span class="text-danger">*</span>
@@ -317,72 +317,16 @@
                         </div>
 
                         <!-- Venue / Location -->
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="custom-input-label">
                                 <i class="bi bi-geo-alt-fill"></i>
                                 Venue / Location
                             </label>
                             <input type="text" name="venue" class="form-control" value="{{ old('venue', $quotation?->venue) }}" placeholder="e.g. Kingsbury Grand Ballroom, Colombo">
                         </div>
-                    </div>
-                </div>
 
-                <!-- Section 2: Category & Package Cascade -->
-                <div class="custom-section-box">
-                    <div class="form-section-title">
-                        <i class="bi bi-box-seam-fill"></i>
-                        <span>Package Selection & Pricing</span>
-                    </div>
-
-                    <div class="row g-3">
-                        <!-- Category -->
-                        <div class="col-md-6">
-                            <label class="custom-input-label">
-                                <i class="bi bi-folder2-open"></i>
-                                Select Category <span class="text-danger">*</span>
-                            </label>
-                            <select id="categoryId" class="form-select" onchange="onCategoryChange(this.value)">
-                                <option value="">-- Choose Category --</option>
-                                @foreach($categories as $cat)
-                                    <option value="{{ $cat->id }}" {{ old('category_id', $quotation?->subCategory?->event_category_id) == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <!-- Sub-Category / Package -->
-                        <div class="col-md-6">
-                            <label class="custom-input-label">
-                                <i class="bi bi-boxes"></i>
-                                Select Sub-Category / Package <span class="text-danger">*</span>
-                            </label>
-                            <select name="event_sub_category_id" id="subCategoryId" class="form-select" required onchange="onSubCategoryChange(this.value)">
-                                @if(isset($initialSubCategories) && $initialSubCategories->isNotEmpty())
-                                    <option value="">-- Select Package --</option>
-                                    @foreach($initialSubCategories as $sub)
-                                        <option value="{{ $sub->id }}" data-sell-price="{{ $sub->sell_price }}" {{ old('event_sub_category_id', $quotation?->event_sub_category_id) == $sub->id ? 'selected' : '' }}>
-                                            {{ $sub->name }} (Sell: Rs. {{ number_format($sub->sell_price, 2) }})
-                                        </option>
-                                    @endforeach
-                                @else
-                                    <option value="">-- Select Category First --</option>
-                                @endif
-                            </select>
-                        </div>
-
-                        <!-- Package Base Sell Price (Editable) -->
-                        <div class="col-md-6">
-                            <label class="custom-input-label">
-                                <i class="bi bi-cash-stack"></i>
-                                Package Base Sell Price (Rs.) <span class="text-danger">*</span>
-                            </label>
-                            <div class="input-group">
-                                <input type="number" step="0.01" min="0" name="package_sell_price" id="packageSellPrice" class="form-control fw-bold text-primary" value="{{ old('package_sell_price', number_format($quotation?->package_sell_price ?? $quotation?->subCategory?->sell_price ?? 0, 2, '.', '')) }}" required oninput="calculateEventTotals()">
-                            </div>
-                            <small class="text-muted d-block mt-1" style="font-size: 11.5px;">Auto-populated from selected package; you can customize the base price here.</small>
-                        </div>
-
-                        <!-- Status -->
-                        <div class="col-md-6">
+                        <!-- Event Status (Moved to Customer & Event Information) -->
+                        <div class="col-md-3">
                             <label class="custom-input-label">
                                 <i class="bi bi-flag-fill"></i>
                                 Event Status <span class="text-danger">*</span>
@@ -393,28 +337,134 @@
                             </select>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Package Included Services Preview Box -->
-                    @php
-                        $pkgServices = $quotation?->subCategory?->subCategoryServices ?? collect();
-                    @endphp
-                    <div id="packageServicesBox" class="mt-3 p-3 bg-white rounded-3 border {{ $pkgServices->count() > 0 ? '' : 'd-none' }} shadow-sm">
-                        <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
-                            <span class="fw-bold text-dark small">
-                                <i class="bi bi-check-circle-fill text-success me-1"></i> Included in Selected Package:
-                            </span>
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="pkgSvcCountBadge">
-                                {{ $pkgServices->count() }} Services
-                            </span>
+                <!-- Section 2: Event Packages (Multi-Package Support) -->
+                @php
+                    $prefilledPackages = [];
+                    if (old('packages')) {
+                        $prefilledPackages = old('packages');
+                    } elseif (isset($quotation) && $quotation) {
+                        if ($quotation->packages && $quotation->packages->isNotEmpty()) {
+                            $prefilledPackages = $quotation->packages->map(fn($p) => [
+                                'event_sub_category_id' => $p->event_sub_category_id,
+                                'category_name' => $p->subCategory?->category?->name ?? 'General',
+                                'package_name' => $p->package_name,
+                                'cost_price' => (float)$p->cost_price,
+                                'sell_price' => (float)$p->sell_price,
+                                'qty' => $p->qty ?? 1,
+                                'total_price' => (float)$p->total_price,
+                                'services' => $p->subCategory?->subCategoryServices->map(fn($s) => [
+                                    'name' => $s->service?->name ?? 'Service',
+                                    'qty' => $s->qty
+                                ])->toArray() ?? []
+                            ])->toArray();
+                        } elseif ($quotation->subCategory || $quotation->package_sell_price > 0) {
+                            $prefilledPackages = [[
+                                'event_sub_category_id' => $quotation->event_sub_category_id,
+                                'category_name' => $quotation->subCategory?->category?->name ?? 'General',
+                                'package_name' => $quotation->package_name ?? $quotation->subCategory?->name ?? 'Event Package',
+                                'cost_price' => (float)($quotation->package_cost_price ?? $quotation->subCategory?->cost_price ?? 0),
+                                'sell_price' => (float)($quotation->package_sell_price ?? $quotation->subCategory?->sell_price ?? 0),
+                                'qty' => 1,
+                                'total_price' => (float)($quotation->package_sell_price ?? $quotation->subCategory?->sell_price ?? 0),
+                                'services' => $quotation->subCategory?->subCategoryServices->map(fn($s) => [
+                                    'name' => $s->service?->name ?? 'Service',
+                                    'qty' => $s->qty
+                                ])->toArray() ?? []
+                            ]];
+                        }
+                    }
+                @endphp
+                <div class="custom-section-box">
+                    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                        <div class="form-section-title mb-0">
+                            <i class="bi bi-box-seam-fill"></i>
+                            <span>Event Packages Selection & Pricing</span>
                         </div>
-                        <div id="packageServicesList" class="d-flex flex-wrap gap-2 pt-1">
-                            @foreach($pkgServices as $ps)
-                                <div class="package-service-pill">
-                                    <i class="bi bi-check2-circle"></i>
-                                    <span>{{ $ps->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $ps->qty }}</strong></span>
-                                </div>
-                            @endforeach
+                        <span class="badge bg-secondary-subtle text-secondary border px-2.5 py-1">
+                            <i class="bi bi-layers-fill me-1"></i> Multi-Package Supported
+                        </span>
+                    </div>
+
+                    <!-- Package Selector Bar -->
+                    <div class="p-3 bg-light rounded-3 border mb-3">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <label class="custom-input-label mb-1">
+                                    <i class="bi bi-folder2-open"></i> Category
+                                </label>
+                                <select id="pkgCategoryId" class="form-select form-select-sm" onchange="onPkgCategoryChange(this.value)">
+                                    <option value="">-- Choose Category --</option>
+                                    @foreach($categories as $cat)
+                                        <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="custom-input-label mb-1">
+                                    <i class="bi bi-boxes"></i> Package / Sub-Category
+                                </label>
+                                <select id="pkgSubCategoryId" class="form-select form-select-sm" onchange="onPkgSubCategoryChange(this.value)">
+                                    <option value="">-- Select Category First --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="custom-input-label mb-1">
+                                    <i class="bi bi-cash-stack"></i> Price (Rs.)
+                                </label>
+                                <input type="number" step="0.01" min="0" id="pkgPriceInput" class="form-control form-control-sm text-end fw-semibold" value="0.00">
+                            </div>
+                            <div class="col-md-1">
+                                <label class="custom-input-label mb-1">
+                                    Qty
+                                </label>
+                                <input type="number" min="1" step="1" id="pkgQtyInput" class="form-control form-control-sm text-center fw-semibold" value="1">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-sm btn-dark w-100 fw-bold d-inline-flex align-items-center justify-content-center gap-1" style="height: 33px;" onclick="addSelectedPackage()">
+                                    <i class="bi bi-plus-circle"></i> Add Package
+                                </button>
+                            </div>
                         </div>
+                        <!-- Live preview of services for currently selected package in picker -->
+                        <div id="pickerPkgServicesPreview" class="d-none mt-2 pt-2 border-top">
+                            <small class="text-muted fw-semibold me-2"><i class="bi bi-check-circle-fill text-success me-1"></i>Included in selected package:</small>
+                            <span id="pickerPkgServicesPills" class="d-inline-flex flex-wrap gap-1"></span>
+                        </div>
+                    </div>
+
+                    <!-- Hidden fields for compatibility -->
+                    <input type="hidden" name="package_sell_price" id="packageSellPrice" value="{{ old('package_sell_price', '0.00') }}">
+                    <input type="hidden" name="event_sub_category_id" id="eventSubCategoryId" value="{{ old('event_sub_category_id', $quotation?->event_sub_category_id ?? '') }}">
+
+                    <!-- Packages Table -->
+                    <div class="modern-table-container">
+                        <table class="table modern-table align-middle" id="packagesTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;" class="text-center">#</th>
+                                    <th>Package Details & Included Deliverables</th>
+                                    <th style="width: 150px;" class="text-end">Unit Price (Rs.)</th>
+                                    <th style="width: 90px;" class="text-center">Qty</th>
+                                    <th style="width: 160px;" class="text-end pe-4">Line Total (Rs.)</th>
+                                    <th style="width: 50px;" class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="packagesTbody">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                            <tfoot class="bg-light">
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold text-secondary">Total Packages Price:</td>
+                                    <td class="text-end pe-4 fw-bold text-primary fs-6" id="packagesTotalDisplay">0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <div id="noPackagesMsg" class="text-center py-4 bg-white border border-top-0 rounded-bottom text-muted small d-none">
+                        <i class="bi bi-info-circle me-1"></i> No packages added yet. Select a category and package above and click <strong>"Add Package"</strong>.
                     </div>
                 </div>
 
@@ -661,6 +711,100 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Advance Payment Settlement Box (Only active when advance_payment > 0) -->
+                    @php
+                        $banks = $banks ?? \App\Models\Bank::where('is_active', true)->orderBy('bank_name')->get();
+                        $hasAdvance = (float)old('advance_payment', 0) > 0;
+                    @endphp
+                    <div id="advancePaymentDetailsBox" class="mt-4 pt-3 border-top {{ $hasAdvance ? '' : 'd-none' }}">
+                        <div class="p-3 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+                            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-success text-white px-2.5 py-1" style="font-size: 11px; font-weight: 600;">
+                                        <i class="bi bi-wallet2 me-1"></i> Advance Settlement Details
+                                    </span>
+                                    <span class="text-muted small">
+                                        Recording advance deposit of <strong class="text-success" id="advancePaymentAmountBadge">Rs. {{ number_format((float)old('advance_payment', 0), 2) }}</strong>
+                                    </span>
+                                </div>
+                                <span class="badge bg-light text-secondary border px-2 py-0.5" style="font-size: 10.5px;">
+                                    <i class="bi bi-info-circle me-1"></i> Updates Cash/Bank Book automatically
+                                </span>
+                            </div>
+
+                            <div class="row g-3">
+                                <!-- Payment Method -->
+                                <div class="col-12 col-md-4">
+                                    <label class="custom-input-label mb-1">
+                                        <i class="bi bi-credit-card-2-front"></i> Payment Method <span class="text-danger">*</span>
+                                    </label>
+                                    <select name="payment_method" id="advPaymentMethod" class="form-select form-select-sm fw-semibold" onchange="onAdvPaymentMethodChange(this.value)">
+                                        <option value="cash" {{ old('payment_method', 'cash') === 'cash' ? 'selected' : '' }}>Cash Payment</option>
+                                        <option value="bank_transfer" {{ old('payment_method') === 'bank_transfer' ? 'selected' : '' }}>Bank Transfer / Deposit</option>
+                                        <option value="cheque" {{ old('payment_method') === 'cheque' ? 'selected' : '' }}>Cheque Payment</option>
+                                    </select>
+                                    <small class="text-muted d-block mt-1" style="font-size: 11px;">How customer pays advance.</small>
+                                </div>
+
+                                <!-- Payment Date -->
+                                <div class="col-12 col-md-4">
+                                    <label class="custom-input-label mb-1">
+                                        <i class="bi bi-calendar3"></i> Payment Date <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="date" name="payment_date" id="advPaymentDate" class="form-control form-control-sm" value="{{ old('payment_date', $today) }}">
+                                    <small class="text-muted d-block mt-1" style="font-size: 11px;">Date recorded in ledger books.</small>
+                                </div>
+
+                                <!-- Dynamic Bank Account (For Bank Transfer and Cheque) -->
+                                <div class="col-12 col-md-4 {{ old('payment_method') === 'bank_transfer' || old('payment_method') === 'cheque' ? '' : 'd-none' }}" id="advBankSelectCol">
+                                    <label class="custom-input-label mb-1">
+                                        <i class="bi bi-bank"></i> <span id="advBankLabelText">{{ old('payment_method') === 'cheque' ? 'Bank Account / Payer Bank' : 'Deposited Bank Account' }}</span> <span class="text-danger">*</span>
+                                    </label>
+                                    <select name="bank_name" id="advBankNameSelect" class="form-select form-select-sm">
+                                        <option value="">-- Choose Bank Account --</option>
+                                        @if(isset($banks) && $banks->isNotEmpty())
+                                            @foreach($banks as $b)
+                                                <option value="{{ $b->bank_name }} - {{ $b->account_number }} ({{ $b->branch }})"
+                                                    @selected(old('bank_name') == "{$b->bank_name} - {$b->account_number} ({$b->branch})")>
+                                                    {{ $b->bank_name }} &bull; {{ $b->account_number }} ({{ $b->branch ?: 'Main' }})
+                                                </option>
+                                            @endforeach
+                                        @endif
+                                    </select>
+                                    <small class="text-muted d-block mt-1" style="font-size: 11px;">Account where money is received.</small>
+                                </div>
+
+                                <!-- Dynamic Cheque Number (For Cheque Only) -->
+                                <div class="col-12 col-md-4 {{ old('payment_method') === 'cheque' ? '' : 'd-none' }}" id="advChequeNoCol">
+                                    <label class="custom-input-label mb-1">
+                                        <i class="bi bi-hash"></i> Cheque Serial Number <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" name="cheque_no" id="advChequeNoInput" class="form-control form-control-sm font-monospace" 
+                                        value="{{ old('cheque_no') }}" placeholder="e.g. CHQ-829102">
+                                    <small class="text-muted d-block mt-1" style="font-size: 11px;">Serial number printed on cheque.</small>
+                                </div>
+
+                                <!-- Dynamic Cheque Date (For Cheque Only) -->
+                                <div class="col-12 col-md-4 {{ old('payment_method') === 'cheque' ? '' : 'd-none' }}" id="advChequeDateCol">
+                                    <label class="custom-input-label mb-1">
+                                        <i class="bi bi-calendar-event"></i> Cheque Date <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="date" name="cheque_date" id="advChequeDateInput" class="form-control form-control-sm" value="{{ old('cheque_date', $today) }}">
+                                    <small class="text-muted d-block mt-1" style="font-size: 11px;">Maturity date on cheque.</small>
+                                </div>
+
+                                <!-- Payment Notes / Reference -->
+                                <div class="col-12">
+                                    <label class="custom-input-label mb-1">
+                                        <i class="bi bi-chat-left-text"></i> Payment Reference / Receipt Slip Notes
+                                    </label>
+                                    <input type="text" name="payment_notes" class="form-control form-control-sm" placeholder="Deposit slip no, payer name, transaction reference..." value="{{ old('payment_notes') }}">
+                                    <small class="text-muted d-block mt-1" style="font-size: 11px;">Optional remarks printed on receipt and logged to transactions.</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Action Footer Bar -->
@@ -731,8 +875,225 @@
 @section('scripts')
 <script>
     const availableServices = @json($services);
+    const prefilledPackages = @json($prefilledPackages ?? []);
+    let packageIndex = 0;
     let extraServiceIndex = {{ count($prefilledServices ?? []) }};
     let otherChargeIndex = {{ count($prefilledCharges ?? []) }};
+    let currentSelectedPackageDetails = null;
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return String(text).replace(/[&<>"']/g, m => map[m]);
+    }
+
+    // Category Change in Package Picker
+    function onPkgCategoryChange(categoryId) {
+        const subSelect = document.getElementById('pkgSubCategoryId');
+        subSelect.innerHTML = '<option value="">-- Loading Packages... --</option>';
+        document.getElementById('pickerPkgServicesPreview').classList.add('d-none');
+        document.getElementById('pickerPkgServicesPills').innerHTML = '';
+        currentSelectedPackageDetails = null;
+
+        if (!categoryId) {
+            subSelect.innerHTML = '<option value="">-- Select Category First --</option>';
+            document.getElementById('pkgPriceInput').value = '0.00';
+            return;
+        }
+
+        fetch(`/api/sub-categories/${categoryId}`)
+            .then(res => res.json())
+            .then(data => {
+                subSelect.innerHTML = '<option value="">-- Select Package --</option>';
+                data.forEach(sub => {
+                    const opt = document.createElement('option');
+                    opt.value = sub.id;
+                    opt.setAttribute('data-sell-price', sub.sell_price);
+                    opt.setAttribute('data-name', sub.name);
+                    opt.text = `${sub.name} (Sell: Rs. ${parseFloat(sub.sell_price).toLocaleString()})`;
+                    subSelect.appendChild(opt);
+                });
+            })
+            .catch(() => {
+                subSelect.innerHTML = '<option value="">Error loading packages</option>';
+            });
+    }
+
+    // Sub-Category Change in Package Picker
+    function onPkgSubCategoryChange(subCategoryId) {
+        if (!subCategoryId) {
+            document.getElementById('pkgPriceInput').value = '0.00';
+            document.getElementById('pickerPkgServicesPreview').classList.add('d-none');
+            document.getElementById('pickerPkgServicesPills').innerHTML = '';
+            currentSelectedPackageDetails = null;
+            return;
+        }
+
+        const subSelect = document.getElementById('pkgSubCategoryId');
+        const selectedOpt = subSelect ? subSelect.options[subSelect.selectedIndex] : null;
+        if (selectedOpt && selectedOpt.getAttribute('data-sell-price')) {
+            document.getElementById('pkgPriceInput').value = parseFloat(selectedOpt.getAttribute('data-sell-price')).toFixed(2);
+        }
+
+        fetch(`/api/sub-category/${subCategoryId}`)
+            .then(res => res.json())
+            .then(data => {
+                currentSelectedPackageDetails = data;
+                if (data.sell_price !== undefined && data.sell_price !== null) {
+                    document.getElementById('pkgPriceInput').value = parseFloat(data.sell_price).toFixed(2);
+                }
+
+                const previewBox = document.getElementById('pickerPkgServicesPreview');
+                const pillsBox = document.getElementById('pickerPkgServicesPills');
+                pillsBox.innerHTML = '';
+
+                if (data.services && data.services.length > 0) {
+                    previewBox.classList.remove('d-none');
+                    data.services.forEach(svc => {
+                        const pill = document.createElement('span');
+                        pill.className = 'package-service-pill';
+                        pill.style.fontSize = '11px';
+                        pill.style.padding = '2px 7px';
+                        pill.innerHTML = `<i class="bi bi-check2-circle text-success"></i> ${svc.service_name} &bull; Qty: <strong>${svc.qty}</strong>`;
+                        pillsBox.appendChild(pill);
+                    });
+                } else {
+                    previewBox.classList.add('d-none');
+                }
+            })
+            .catch(() => {
+                currentSelectedPackageDetails = null;
+            });
+    }
+
+    // Add Package from Picker into Table
+    function addSelectedPackage() {
+        const catSelect = document.getElementById('pkgCategoryId');
+        const subSelect = document.getElementById('pkgSubCategoryId');
+        const priceInput = document.getElementById('pkgPriceInput');
+        const qtyInput = document.getElementById('pkgQtyInput');
+
+        const subCategoryId = subSelect.value;
+        if (!subCategoryId) {
+            alert('Please select a package first.');
+            return;
+        }
+
+        const selectedOpt = subSelect.options[subSelect.selectedIndex];
+        const packageName = selectedOpt.getAttribute('data-name') || selectedOpt.text.split('(')[0].trim();
+        const categoryName = catSelect.options[catSelect.selectedIndex]?.text || '';
+        const sellPrice = parseFloat(priceInput.value) || 0;
+        const qty = parseInt(qtyInput.value) || 1;
+        const costPrice = currentSelectedPackageDetails?.cost_price ? parseFloat(currentSelectedPackageDetails.cost_price) : 0;
+        const services = currentSelectedPackageDetails?.services || [];
+
+        addPackageRow({
+            event_sub_category_id: subCategoryId,
+            category_name: categoryName,
+            package_name: packageName,
+            cost_price: costPrice,
+            sell_price: sellPrice,
+            qty: qty,
+            total_price: sellPrice * qty,
+            services: services
+        });
+
+        // Reset inputs
+        qtyInput.value = '1';
+    }
+
+    // Render Package Row in Table
+    function addPackageRow(pkg) {
+        const tbody = document.getElementById('packagesTbody');
+        const emptyMsg = document.getElementById('noPackagesMsg');
+        if (emptyMsg) emptyMsg.classList.add('d-none');
+
+        const idx = packageIndex++;
+        const sellPrice = parseFloat(pkg.sell_price || 0);
+        const qty = parseInt(pkg.qty || 1);
+        const totalPrice = parseFloat(pkg.total_price || (sellPrice * qty));
+        const services = pkg.services || [];
+
+        let servicesHtml = '';
+        if (services.length > 0) {
+            servicesHtml = '<div class="d-flex flex-wrap gap-1 mt-1.5">';
+            services.forEach(s => {
+                const sName = s.name || s.service_name || 'Service';
+                servicesHtml += `<span class="package-service-pill" style="font-size: 11px; padding: 2px 7px;"><i class="bi bi-check2-circle text-success"></i> ${escapeHtml(sName)} &bull; Qty: <strong>${s.qty}</strong></span>`;
+            });
+            servicesHtml += '</div>';
+        }
+
+        const tr = document.createElement('tr');
+        tr.id = `pkg_row_${idx}`;
+        tr.innerHTML = `
+            <td class="text-center text-muted fw-bold font-num">${tbody.children.length + 1}</td>
+            <td>
+                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                    <strong class="text-dark fs-6">${escapeHtml(pkg.package_name)}</strong>
+                    ${pkg.category_name ? `<span class="badge bg-secondary-subtle text-secondary border small">${escapeHtml(pkg.category_name)}</span>` : ''}
+                </div>
+                ${servicesHtml}
+                <input type="hidden" name="packages[${idx}][event_sub_category_id]" class="pkg-subcat-id-field" value="${pkg.event_sub_category_id || ''}">
+                <input type="hidden" name="packages[${idx}][package_name]" value="${escapeHtml(pkg.package_name)}">
+                <input type="hidden" name="packages[${idx}][cost_price]" value="${pkg.cost_price || 0}">
+            </td>
+            <td>
+                <input type="number" step="0.01" min="0" name="packages[${idx}][sell_price]" id="pkg_price_${idx}" class="form-control form-control-sm text-end fw-semibold" value="${sellPrice.toFixed(2)}" oninput="calcPackageLine(${idx})">
+            </td>
+            <td>
+                <input type="number" min="1" step="1" name="packages[${idx}][qty]" id="pkg_qty_${idx}" class="form-control form-control-sm text-center fw-semibold" value="${qty}" oninput="calcPackageLine(${idx})">
+            </td>
+            <td class="text-end pe-4 fw-bold text-dark font-num fs-6" id="pkg_line_total_${idx}">
+                ${totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <input type="hidden" name="packages[${idx}][total_price]" id="pkg_total_input_${idx}" class="pkg-line-total-val" value="${totalPrice.toFixed(2)}">
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn-action btn-action-delete mx-auto" onclick="removePackageRow(${idx})" title="Remove package">
+                    <i class="bi bi-trash3"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        reindexPackageRows();
+        calculateEventTotals();
+    }
+
+    function calcPackageLine(idx) {
+        const qty = parseInt(document.getElementById(`pkg_qty_${idx}`)?.value) || 1;
+        const price = parseFloat(document.getElementById(`pkg_price_${idx}`)?.value) || 0;
+        const lineTotal = qty * price;
+        const cell = document.getElementById(`pkg_line_total_${idx}`);
+        const hiddenTotal = document.getElementById(`pkg_total_input_${idx}`);
+        if (cell) {
+            cell.innerText = lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        if (hiddenTotal) {
+            hiddenTotal.value = lineTotal.toFixed(2);
+        }
+        calculateEventTotals();
+    }
+
+    function removePackageRow(idx) {
+        document.getElementById(`pkg_row_${idx}`)?.remove();
+        reindexPackageRows();
+        calculateEventTotals();
+    }
+
+    function reindexPackageRows() {
+        const tbody = document.getElementById('packagesTbody');
+        const rows = tbody.querySelectorAll('tr');
+        const emptyMsg = document.getElementById('noPackagesMsg');
+        if (rows.length === 0) {
+            if (emptyMsg) emptyMsg.classList.remove('d-none');
+        } else {
+            if (emptyMsg) emptyMsg.classList.add('d-none');
+            rows.forEach((row, index) => {
+                const numCell = row.querySelector('td:first-child');
+                if (numCell) numCell.innerText = index + 1;
+            });
+        }
+    }
 
     // Quick Add Customer via AJAX
     function saveQuickCustomer() {
@@ -811,94 +1172,6 @@
             alertBox.classList.remove('d-none');
             alertBox.innerText = 'An error occurred while saving.';
         });
-    }
-
-    // Category Change -> Cascade Sub-Categories (Packages)
-    function onCategoryChange(categoryId) {
-        const subSelect = document.getElementById('subCategoryId');
-        subSelect.innerHTML = '<option value="">-- Loading Packages... --</option>';
-
-        if (!categoryId) {
-            subSelect.innerHTML = '<option value="">-- Select Category First --</option>';
-            resetPackageDetails();
-            return;
-        }
-
-        fetch(`/api/sub-categories/${categoryId}`)
-            .then(res => res.json())
-            .then(data => {
-                subSelect.innerHTML = '<option value="">-- Select Package --</option>';
-                data.forEach(sub => {
-                    const opt = document.createElement('option');
-                    opt.value = sub.id;
-                    opt.setAttribute('data-sell-price', sub.sell_price);
-                    opt.text = `${sub.name} (Sell: Rs. ${parseFloat(sub.sell_price).toLocaleString()})`;
-                    subSelect.appendChild(opt);
-                });
-                resetPackageDetails();
-            })
-            .catch(() => {
-                subSelect.innerHTML = '<option value="">Error loading packages</option>';
-            });
-    }
-
-    // Sub-Category Change -> Load Package Services & Sell Price
-    function onSubCategoryChange(subCategoryId) {
-        if (!subCategoryId) {
-            resetPackageDetails();
-            return;
-        }
-
-        const subSelect = document.getElementById('subCategoryId');
-        const selectedOpt = subSelect ? subSelect.options[subSelect.selectedIndex] : null;
-        if (selectedOpt && selectedOpt.getAttribute('data-sell-price')) {
-            const immediatePrice = parseFloat(selectedOpt.getAttribute('data-sell-price')) || 0;
-            document.getElementById('packageSellPrice').value = immediatePrice.toFixed(2);
-            calculateEventTotals();
-        }
-
-        fetch(`/api/sub-category/${subCategoryId}`)
-            .then(res => {
-                if (!res.ok) throw new Error('Network error');
-                return res.json();
-            })
-            .then(data => {
-                if (data.sell_price !== undefined && data.sell_price !== null) {
-                    document.getElementById('packageSellPrice').value = parseFloat(data.sell_price).toFixed(2);
-                }
-
-                const pkgBox = document.getElementById('packageServicesBox');
-                const pkgList = document.getElementById('packageServicesList');
-                const badge = document.getElementById('pkgSvcCountBadge');
-
-                pkgList.innerHTML = '';
-                if (data.services && data.services.length > 0) {
-                    pkgBox.classList.remove('d-none');
-                    badge.innerText = `${data.services.length} Services`;
-
-                    data.services.forEach(svc => {
-                        const pill = document.createElement('div');
-                        pill.className = 'package-service-pill';
-                        pill.innerHTML = `<i class="bi bi-check2-circle"></i> <span>${svc.service_name} &bull; Qty: <strong>${svc.qty}</strong></span>`;
-                        pkgList.appendChild(pill);
-                    });
-                } else {
-                    pkgBox.classList.add('d-none');
-                }
-
-                calculateEventTotals();
-            })
-            .catch(err => {
-                console.error('Error fetching package details:', err);
-                calculateEventTotals();
-            });
-    }
-
-    function resetPackageDetails() {
-        document.getElementById('packageSellPrice').value = '0.00';
-        document.getElementById('packageServicesBox').classList.add('d-none');
-        document.getElementById('packageServicesList').innerHTML = '';
-        calculateEventTotals();
     }
 
     // Add Additional Service Row
@@ -1021,7 +1294,26 @@
 
     // Live Calculation of All Totals
     function calculateEventTotals() {
-        const packageSellPrice = parseFloat(document.getElementById('packageSellPrice').value) || 0;
+        // Sum Packages from Table
+        let packagesTotal = 0;
+        let firstSubCatId = '';
+        document.querySelectorAll('#packagesTbody tr').forEach(row => {
+            const lineVal = parseFloat(row.querySelector('.pkg-line-total-val')?.value) || 0;
+            packagesTotal += lineVal;
+            if (!firstSubCatId) {
+                const subCatField = row.querySelector('.pkg-subcat-id-field');
+                if (subCatField && subCatField.value) {
+                    firstSubCatId = subCatField.value;
+                }
+            }
+        });
+
+        document.getElementById('packageSellPrice').value = packagesTotal.toFixed(2);
+        document.getElementById('eventSubCategoryId').value = firstSubCatId;
+        const pkgTotalDisplay = document.getElementById('packagesTotalDisplay');
+        if (pkgTotalDisplay) {
+            pkgTotalDisplay.innerText = packagesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
 
         // Sum Extra Services
         let servicesTotal = 0;
@@ -1040,7 +1332,7 @@
         const discount = parseFloat(document.getElementById('discountInput').value) || 0;
         const advance = parseFloat(document.getElementById('advancePaymentInput').value) || 0;
 
-        const subtotal = packageSellPrice + servicesTotal + chargesTotal;
+        const subtotal = packagesTotal + servicesTotal + chargesTotal;
         const finalTotal = Math.max(0, subtotal - discount);
         const estimatedBalance = Math.max(0, finalTotal - advance);
 
@@ -1048,16 +1340,87 @@
         document.getElementById('extraServicesTotalDisplay').innerText = servicesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('otherChargesTotalDisplay').innerText = chargesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-        document.getElementById('sumPackage').innerText = 'Rs. ' + packageSellPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('sumPackage').innerText = 'Rs. ' + packagesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('sumServices').innerText = 'Rs. ' + servicesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('sumCharges').innerText = 'Rs. ' + chargesTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
         document.getElementById('finalTotalDisplay').innerText = 'Rs. ' + finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('estimatedBalanceDisplay').innerText = 'Rs. ' + estimatedBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        // Advance payment conditional box
+        const advBox = document.getElementById('advancePaymentDetailsBox');
+        const advBadge = document.getElementById('advancePaymentAmountBadge');
+        if (advBox) {
+            if (advance > 0) {
+                advBox.classList.remove('d-none');
+                if (advBadge) {
+                    advBadge.innerText = 'Rs. ' + advance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+                const curMethod = document.getElementById('advPaymentMethod')?.value || 'cash';
+                onAdvPaymentMethodChange(curMethod);
+            } else {
+                advBox.classList.add('d-none');
+                const bankSelect = document.getElementById('advBankNameSelect');
+                const chequeInput = document.getElementById('advChequeNoInput');
+                const chequeDateInput = document.getElementById('advChequeDateInput');
+                if (bankSelect) bankSelect.required = false;
+                if (chequeInput) chequeInput.required = false;
+                if (chequeDateInput) chequeDateInput.required = false;
+            }
+        }
+    }
+
+    function onAdvPaymentMethodChange(method) {
+        const advance = parseFloat(document.getElementById('advancePaymentInput')?.value) || 0;
+        const bankCol = document.getElementById('advBankSelectCol');
+        const chequeCol = document.getElementById('advChequeNoCol');
+        const chequeDateCol = document.getElementById('advChequeDateCol');
+        const bankSelect = document.getElementById('advBankNameSelect');
+        const chequeInput = document.getElementById('advChequeNoInput');
+        const chequeDateInput = document.getElementById('advChequeDateInput');
+        const bankLabel = document.getElementById('advBankLabelText');
+
+        if (advance <= 0) {
+            if (bankSelect) bankSelect.required = false;
+            if (chequeInput) chequeInput.required = false;
+            if (chequeDateInput) chequeDateInput.required = false;
+            return;
+        }
+
+        if (method === 'bank_transfer') {
+            if (bankCol) bankCol.classList.remove('d-none');
+            if (chequeCol) chequeCol.classList.add('d-none');
+            if (chequeDateCol) chequeDateCol.classList.add('d-none');
+            if (bankLabel) bankLabel.innerText = 'Deposited Bank Account';
+            if (bankSelect) bankSelect.required = true;
+            if (chequeInput) chequeInput.required = false;
+            if (chequeDateInput) chequeDateInput.required = false;
+        } else if (method === 'cheque') {
+            if (bankCol) bankCol.classList.remove('d-none');
+            if (chequeCol) chequeCol.classList.remove('d-none');
+            if (chequeDateCol) chequeDateCol.classList.remove('d-none');
+            if (bankLabel) bankLabel.innerText = 'Bank Account / Payer Bank';
+            if (bankSelect) bankSelect.required = true;
+            if (chequeInput) chequeInput.required = true;
+            if (chequeDateInput) chequeDateInput.required = true;
+        } else {
+            // cash
+            if (bankCol) bankCol.classList.add('d-none');
+            if (chequeCol) chequeCol.classList.add('d-none');
+            if (chequeDateCol) chequeDateCol.classList.add('d-none');
+            if (bankSelect) bankSelect.required = false;
+            if (chequeInput) chequeInput.required = false;
+            if (chequeDateInput) chequeDateInput.required = false;
+        }
     }
 
     // Trigger on load
     document.addEventListener('DOMContentLoaded', () => {
+        if (prefilledPackages && prefilledPackages.length > 0) {
+            prefilledPackages.forEach(pkg => addPackageRow(pkg));
+        } else {
+            reindexPackageRows();
+        }
         calculateEventTotals();
     });
 </script>

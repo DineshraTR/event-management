@@ -190,49 +190,110 @@
             </div>
         </div>
 
-        <!-- 2. Booked Package & Included Services -->
+        <!-- 2. Booked Packages & Included Services (Multi-Package Supported) -->
+        @php
+            $displayPackages = $event->packages && $event->packages->isNotEmpty() ? $event->packages : collect();
+        @endphp
         <div class="section-card">
             <div class="section-card-header">
                 <h6 class="section-card-title">
-                    <i class="bi bi-box-seam text-primary"></i> Booked Package & Included Services
+                    <i class="bi bi-box-seam text-primary"></i> Booked Packages & Included Services
                 </h6>
                 <span class="badge bg-light text-dark border">
-                    Base: Rs. {{ number_format($event->package_sell_price, 2) }}
+                    Total Packages: Rs. {{ number_format($event->package_sell_price, 2) }}
                 </span>
             </div>
             <div class="card-body p-4">
-                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom flex-wrap gap-2">
-                    <div>
-                        <h6 class="fw-bold text-dark mb-0">{{ $event->subCategory?->name ?? 'Standard Package' }}</h6>
-                        <small class="text-muted">Category: {{ $event->subCategory?->category?->name ?? 'General Category' }}</small>
-                    </div>
-                    <div class="text-end">
-                        <small class="text-muted d-block" style="font-size: 11px;">PACKAGE BASE PRICE</small>
-                        <span class="fw-bold text-primary fs-6">Rs. {{ number_format($event->package_sell_price, 2) }}</span>
-                    </div>
-                </div>
-
-                @php
-                    $includedServices = $event->subCategory?->subCategoryServices ?? collect();
-                @endphp
-
-                <small class="text-muted d-block mb-2 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
-                    Included Package Services ({{ $includedServices->count() }} Items):
-                </small>
-
-                @if($includedServices->isNotEmpty())
-                    <div class="d-flex flex-wrap gap-2">
-                        @foreach($includedServices as $pkgSvc)
-                            <div class="package-service-pill">
-                                <i class="bi bi-check2-circle text-success fs-6"></i>
-                                <span>{{ $pkgSvc->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $pkgSvc->qty }}</strong></span>
-                            </div>
-                        @endforeach
+                @if($displayPackages->isNotEmpty())
+                    <div class="table-responsive mb-3">
+                        <table class="table modern-table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Package Name</th>
+                                    <th>Category</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Unit Price</th>
+                                    <th class="text-end">Total Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($displayPackages as $pkg)
+                                    @php
+                                        $pkgUnitPrice = (float) (
+                                            $pkg->sell_price > 0 
+                                                ? $pkg->sell_price 
+                                                : ($pkg->unit_price > 0 
+                                                    ? $pkg->unit_price 
+                                                    : ($pkg->qty > 0 && $pkg->total_price > 0 
+                                                        ? $pkg->total_price / $pkg->qty 
+                                                        : ($pkg->subCategory?->sell_price 
+                                                            ?: ($event->package_sell_price 
+                                                                ?: ($event->subCategory?->sell_price ?? 0))))));
+                                        $pkgTotalPrice = (float) ($pkg->total_price > 0 ? $pkg->total_price : ($pkgUnitPrice * ($pkg->qty ?: 1)));
+                                        $delivItems = $pkg->deliverables;
+                                        if (empty($delivItems) && $pkg->subCategory && $pkg->subCategory->subCategoryServices) {
+                                            $delivItems = $pkg->subCategory->subCategoryServices->map(fn($s) => [
+                                                'service_name' => $s->service?->name ?? 'Item',
+                                                'qty' => $s->qty
+                                            ])->toArray();
+                                        }
+                                    @endphp
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold text-dark">{{ $pkg->package_name }}</div>
+                                            @if(!empty($delivItems) && is_array($delivItems) && count($delivItems) > 0)
+                                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                                    @foreach($delivItems as $deliv)
+                                                        <span class="badge bg-light text-secondary border fw-normal" style="font-size: 10.5px;">
+                                                            <i class="bi bi-check2"></i> {{ $deliv['service_name'] ?? $deliv['name'] ?? 'Item' }} (x{{ $deliv['qty'] ?? 1 }})
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                        </td>
+                                        <td class="text-secondary small">{{ $pkg->category_name ?? $pkg->subCategory?->category?->name ?? 'Package' }}</td>
+                                        <td class="text-center font-num fw-semibold">{{ $pkg->qty ?: 1 }}</td>
+                                        <td class="text-end font-num">Rs. {{ number_format($pkgUnitPrice, 2) }}</td>
+                                        <td class="text-end font-num fw-bold text-dark">Rs. {{ number_format($pkgTotalPrice, 2) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
                 @else
-                    <div class="text-muted small py-2">
-                        <i class="bi bi-info-circle me-1"></i> No standard bundled services defined for this package.
+                    <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-bold text-dark mb-0">{{ $event->subCategory?->name ?? 'Standard Package' }}</h6>
+                            <small class="text-muted">Category: {{ $event->subCategory?->category?->name ?? 'General Category' }}</small>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted d-block" style="font-size: 11px;">PACKAGE BASE PRICE</small>
+                            <span class="fw-bold text-primary fs-6">Rs. {{ number_format($event->package_sell_price, 2) }}</span>
+                        </div>
                     </div>
+
+                    @php
+                        $includedServices = $event->subCategory?->subCategoryServices ?? collect();
+                    @endphp
+
+                    <small class="text-muted d-block mb-2 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
+                        Included Package Services ({{ $includedServices->count() }} Items):
+                    </small>
+
+                    @if($includedServices->isNotEmpty())
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach($includedServices as $pkgSvc)
+                                <div class="package-service-pill">
+                                    <i class="bi bi-check2-circle text-success fs-6"></i>
+                                    <span>{{ $pkgSvc->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $pkgSvc->qty }}</strong></span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-muted small py-2">
+                            <i class="bi bi-info-circle me-1"></i> No standard bundled services defined for this package.
+                        </div>
+                    @endif
                 @endif
             </div>
         </div>
@@ -577,13 +638,20 @@
                         </a>
                     @endif
 
-                    <form method="POST" action="{{ route('events.destroy', $event) }}" class="mt-2" onsubmit="return confirm('Are you sure you want to delete this event? This action cannot be undone.');">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-outline-danger w-100 py-2 fw-semibold">
-                            <i class="bi bi-trash3 me-1.5"></i> Delete Event
-                        </button>
-                    </form>
+                    @if(!$event->hasPayments())
+                        <form method="POST" action="{{ route('events.destroy', $event) }}" class="mt-2" onsubmit="handleDeleteConfirmation(event, this, {
+                            type: 'Event',
+                            title: '{{ $event->event_no }} - {{ addslashes($event->event_name) }}',
+                            hasPayments: false,
+                            extraNote: '{{ $event->order ? 'Associated Order #' . $event->order->order_no . ' and all its items will also be permanently deleted.' : '' }}'
+                        });">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-outline-danger w-100 py-2 fw-semibold">
+                                <i class="bi bi-trash3 me-1.5"></i> Delete Event
+                            </button>
+                        </form>
+                    @endif
                 </div>
             </div>
         </div>

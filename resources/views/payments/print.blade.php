@@ -233,11 +233,11 @@
                     <i class="bi bi-stars"></i>
                 </div> -->
                 <div>
-                    <div class="company-brand-title">Event Management System</div>
+                    <div class="company-brand-title">CEYLON WEDDING COMPANY</div>
                     <div class="company-meta-text">
-                        <span>Event Planning, Design & Luxury Catering Solutions</span><br>
-                        <span>Hotline: +94 11 234 5678 / +94 77 123 4567</span> <br> 
-                        <span>Email: info@eventmanagement.lk</span>
+                        <span>Photography & Videography Solutions</span><br>
+                        <span>Hotline: 0777524937 | Email: ceylonwedding.co@gmail.com</span><br>
+                        <span>www.ceylonweddingcompany.com</span>
                     </div>
                 </div>
             </div>
@@ -423,7 +423,8 @@
 
         <!-- 6. Footer Notice -->
         <div class="text-center text-muted mt-3 pt-2 border-top" style="font-size: 9.5px;">
-            Thank you for your payment! This is an official computer-generated receipt issued by <strong>Event Management System</strong>.
+            Thank you for your payment! This is an official computer-generated receipt issued by <strong>CEYLON WEDDING COMPANY</strong>.<br>
+            Software by <a class="text-muted" href="https://www.tritcal.com" target="_blank" style="text-decoration: none;">Tritcal International LLC | www.tritcal.com </a>
         </div>
     </main>
 

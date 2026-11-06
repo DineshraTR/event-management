@@ -309,67 +309,97 @@
                     </div>
                 </div>
 
-                <!-- Section 2: Package Selection & Pricing (From Event Register Style) -->
+                <!-- Section 2: Package Selection & Pricing (Multi-Package Supported) -->
                 <div class="custom-section-box">
-                    <div class="form-section-title">
-                        <i class="bi bi-box-seam-fill"></i>
-                        <span>Package Selection & Pricing</span>
+                    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                        <div class="form-section-title mb-0">
+                            <i class="bi bi-box-seam-fill"></i>
+                            <span>Quotation Packages Selection & Pricing</span>
+                        </div>
+                        <span class="badge bg-secondary-subtle text-secondary border px-2.5 py-1">
+                            <i class="bi bi-layers-fill me-1"></i> Multi-Package Supported
+                        </span>
                     </div>
 
-                    <div class="row g-3">
-                        <!-- Category -->
-                        <div class="col-md-4">
-                            <label class="custom-input-label">
-                                <i class="bi bi-folder2-open"></i>
-                                Select Category
-                            </label>
-                            <select id="categoryId" class="form-select" onchange="onCategoryChange(this.value)">
-                                <option value="">-- Choose Category --</option>
-                                @foreach($categories as $cat)
-                                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <!-- Sub-Category / Package -->
-                        <div class="col-md-4">
-                            <label class="custom-input-label">
-                                <i class="bi bi-boxes"></i>
-                                Select Sub-Category / Package
-                            </label>
-                            <select name="event_sub_category_id" id="subCategoryId" class="form-select" onchange="onSubCategoryChange(this.value)">
-                                <option value="">-- Select Category First --</option>
-                            </select>
-                            <small class="text-muted d-block mt-1" style="font-size: 11.5px;">Auto-loads included deliverables and package base price.</small>
-                        </div>
-
-                        <!-- Package Base Sell Price (Editable) -->
-                        <div class="col-md-4">
-                            <label class="custom-input-label">
-                                <i class="bi bi-cash-stack"></i>
-                                Package Base Sell Price (Rs.)
-                            </label>
-                            <div class="input-group">
-                                <input type="number" step="0.01" min="0" name="package_sell_price" id="packageSellPrice" class="form-control fw-bold text-primary" value="{{ old('package_sell_price', '0.00') }}" oninput="calculateQuotationTotals()">
+                    <!-- Package Selector Bar -->
+                    <div class="p-3 bg-light rounded-3 border mb-3">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <label class="custom-input-label mb-1">
+                                    <i class="bi bi-folder2-open"></i> Category
+                                </label>
+                                <select id="pkgCategoryId" class="form-select form-select-sm" onchange="onPkgCategoryChange(this.value)">
+                                    <option value="">-- Choose Category --</option>
+                                    @foreach($categories as $cat)
+                                        <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                    @endforeach
+                                </select>
                             </div>
-                            <small class="text-muted d-block mt-1" style="font-size: 11.5px;">Base price for this package; included directly in quotation total.</small>
+                            <div class="col-md-4">
+                                <label class="custom-input-label mb-1">
+                                    <i class="bi bi-boxes"></i> Package / Sub-Category
+                                </label>
+                                <select id="pkgSubCategoryId" class="form-select form-select-sm" onchange="onPkgSubCategoryChange(this.value)">
+                                    <option value="">-- Select Category First --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="custom-input-label mb-1">
+                                    <i class="bi bi-cash-stack"></i> Price (Rs.)
+                                </label>
+                                <input type="number" step="0.01" min="0" id="pkgPriceInput" class="form-control form-control-sm text-end fw-semibold" value="0.00">
+                            </div>
+                            <div class="col-md-1">
+                                <label class="custom-input-label mb-1">
+                                    Qty
+                                </label>
+                                <input type="number" min="1" step="1" id="pkgQtyInput" class="form-control form-control-sm text-center fw-semibold" value="1">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-sm btn-dark w-100 fw-bold d-inline-flex align-items-center justify-content-center gap-1" style="height: 33px;" onclick="addSelectedPackage()">
+                                    <i class="bi bi-plus-circle"></i> Add Package
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Live preview of services for currently selected package in picker -->
+                        <div id="pkgPickerServicesPreview" class="d-none mt-2 pt-2 border-top small text-muted">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <strong class="text-dark"><i class="bi bi-check2-circle text-success"></i> Includes:</strong>
+                                <span id="pkgPickerServicesList" class="d-inline-flex flex-wrap gap-1"></span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Package Included Services Preview Box -->
-                    <div id="packageServicesBox" class="mt-3 p-3 bg-white rounded-3 border d-none shadow-sm">
-                        <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
-                            <span class="fw-bold text-dark small">
-                                <i class="bi bi-check-circle-fill text-success me-1"></i> Included in Selected Package:
-                            </span>
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="pkgSvcCountBadge">
-                                0 Services
-                            </span>
-                        </div>
-                        <div id="packageServicesList" class="d-flex flex-wrap gap-2 pt-1">
-                            <!-- Dynamic Pills -->
-                        </div>
+                    <!-- Packages List Table -->
+                    <div class="modern-table-container">
+                        <table class="table modern-table align-middle mb-0" id="quotationPackagesTable">
+                            <thead>
+                                <tr>
+                                    <th>Package / Sub-Category</th>
+                                    <th style="width: 160px;" class="text-end">Unit Price (Rs.)</th>
+                                    <th style="width: 100px;" class="text-center">Qty</th>
+                                    <th style="width: 170px;" class="text-end pe-4">Line Total (Rs.)</th>
+                                    <th style="width: 50px;" class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quotationPackagesTbody">
+                                <!-- Dynamic Packages Rows -->
+                            </tbody>
+                            <tfoot class="bg-light">
+                                <tr>
+                                    <td colspan="3" class="text-end fw-bold text-secondary">Total Packages Amount:</td>
+                                    <td class="text-end pe-4 fw-bold text-dark fs-6" id="packagesTotalDisplay">0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
                     </div>
+                    <div id="noPackagesMsg" class="text-center py-4 bg-white border border-top-0 rounded-bottom text-muted small">
+                        <i class="bi bi-info-circle me-1"></i> No packages added yet. Select a category &amp; package above and click <strong>"Add Package"</strong>.
+                    </div>
+
+                    <!-- Hidden input to maintain package_sell_price legacy compatibility -->
+                    <input type="hidden" name="package_sell_price" id="packageSellPrice" value="{{ old('package_sell_price', '0.00') }}">
                 </div>
 
                 <!-- Section 3: Additional Services & Deliverables -->
@@ -667,14 +697,20 @@
         });
     }
 
+    let qPkgIndex = 0;
+    let currentPickerPkgData = null;
+
     // Category Change -> Cascade Sub-Categories (Packages)
-    function onCategoryChange(categoryId) {
-        const subSelect = document.getElementById('subCategoryId');
+    function onPkgCategoryChange(categoryId) {
+        const subSelect = document.getElementById('pkgSubCategoryId');
         subSelect.innerHTML = '<option value="">-- Loading Packages... --</option>';
+        document.getElementById('pkgPriceInput').value = '0.00';
+        document.getElementById('pkgPickerServicesPreview').classList.add('d-none');
+        document.getElementById('pkgPickerServicesList').innerHTML = '';
+        currentPickerPkgData = null;
 
         if (!categoryId) {
             subSelect.innerHTML = '<option value="">-- Select Category First --</option>';
-            resetPackageDetails();
             return;
         }
 
@@ -689,7 +725,6 @@
                     opt.text = `${sub.name} (Sell: Rs. ${parseFloat(sub.sell_price).toLocaleString()})`;
                     subSelect.appendChild(opt);
                 });
-                resetPackageDetails();
             })
             .catch(() => {
                 subSelect.innerHTML = '<option value="">Error loading packages</option>';
@@ -697,18 +732,20 @@
     }
 
     // Sub-Category Change -> Load Package Details & Included Deliverables
-    function onSubCategoryChange(subCategoryId) {
+    function onPkgSubCategoryChange(subCategoryId) {
         if (!subCategoryId) {
-            resetPackageDetails();
+            document.getElementById('pkgPriceInput').value = '0.00';
+            document.getElementById('pkgPickerServicesPreview').classList.add('d-none');
+            document.getElementById('pkgPickerServicesList').innerHTML = '';
+            currentPickerPkgData = null;
             return;
         }
 
-        const subSelect = document.getElementById('subCategoryId');
+        const subSelect = document.getElementById('pkgSubCategoryId');
         const selectedOpt = subSelect ? subSelect.options[subSelect.selectedIndex] : null;
         if (selectedOpt && selectedOpt.getAttribute('data-sell-price')) {
             const immediatePrice = parseFloat(selectedOpt.getAttribute('data-sell-price')) || 0;
-            document.getElementById('packageSellPrice').value = immediatePrice.toFixed(2);
-            calculateQuotationTotals();
+            document.getElementById('pkgPriceInput').value = immediatePrice.toFixed(2);
         }
 
         fetch(`/api/sub-category/${subCategoryId}`)
@@ -717,42 +754,157 @@
                 return res.json();
             })
             .then(data => {
+                currentPickerPkgData = data;
                 if (data.sell_price !== undefined && data.sell_price !== null) {
-                    document.getElementById('packageSellPrice').value = parseFloat(data.sell_price).toFixed(2);
+                    document.getElementById('pkgPriceInput').value = parseFloat(data.sell_price).toFixed(2);
                 }
 
-                const pkgBox = document.getElementById('packageServicesBox');
-                const pkgList = document.getElementById('packageServicesList');
-                const badge = document.getElementById('pkgSvcCountBadge');
+                const previewBox = document.getElementById('pkgPickerServicesPreview');
+                const listEl = document.getElementById('pkgPickerServicesList');
+                listEl.innerHTML = '';
 
-                pkgList.innerHTML = '';
                 if (data.services && data.services.length > 0) {
-                    pkgBox.classList.remove('d-none');
-                    badge.innerText = `${data.services.length} Services`;
-
-                    data.services.forEach(svc => {
-                        const pill = document.createElement('div');
-                        pill.className = 'package-service-pill';
-                        pill.innerHTML = `<i class="bi bi-check2-circle"></i> <span>${svc.service_name} &bull; Qty: <strong>${svc.qty}</strong></span>`;
-                        pkgList.appendChild(pill);
+                    previewBox.classList.remove('d-none');
+                    data.services.forEach(s => {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge bg-white border text-dark fw-normal';
+                        badge.textContent = `${s.service_name} (x${s.qty})`;
+                        listEl.appendChild(badge);
                     });
                 } else {
-                    pkgBox.classList.add('d-none');
+                    previewBox.classList.add('d-none');
                 }
-
-                calculateQuotationTotals();
             })
             .catch(err => {
                 console.error('Error fetching package details:', err);
-                calculateQuotationTotals();
             });
     }
 
-    function resetPackageDetails() {
-        document.getElementById('packageSellPrice').value = '0.00';
-        document.getElementById('packageServicesBox').classList.add('d-none');
-        document.getElementById('packageServicesList').innerHTML = '';
+    // Add Package to Quotation Table
+    function addSelectedPackage() {
+        const subSelect = document.getElementById('pkgSubCategoryId');
+        const catSelect = document.getElementById('pkgCategoryId');
+        const subId = subSelect.value;
+        if (!subId) {
+            alert('Please select a package first.');
+            return;
+        }
+
+        const packageName = subSelect.options[subSelect.selectedIndex].text.replace(/\s*\(Sell:.*?\)\s*/i, '').trim();
+        const categoryName = catSelect.options[catSelect.selectedIndex].text.trim();
+        const unitPrice = parseFloat(document.getElementById('pkgPriceInput').value) || 0;
+        const qty = parseInt(document.getElementById('pkgQtyInput').value) || 1;
+        const deliverables = (currentPickerPkgData && currentPickerPkgData.services) ? currentPickerPkgData.services : [];
+
+        addQuotationPackageRow({
+            event_sub_category_id: subId,
+            package_name: packageName,
+            category_name: categoryName,
+            unit_price: unitPrice,
+            qty: qty,
+            deliverables: deliverables
+        });
+
+        // Reset picker selection
+        subSelect.value = '';
+        document.getElementById('pkgPriceInput').value = '0.00';
+        document.getElementById('pkgQtyInput').value = '1';
+        document.getElementById('pkgPickerServicesPreview').classList.add('d-none');
+        document.getElementById('pkgPickerServicesList').innerHTML = '';
+        currentPickerPkgData = null;
+    }
+
+    function addQuotationPackageRow(pkg) {
+        const tbody = document.getElementById('quotationPackagesTbody');
+        const emptyMsg = document.getElementById('noPackagesMsg');
+        if (emptyMsg) emptyMsg.classList.add('d-none');
+
+        const idx = qPkgIndex++;
+        const lineTotal = (parseFloat(pkg.unit_price) || 0) * (parseInt(pkg.qty) || 1);
+
+        let deliverableBadgesHtml = '';
+        if (pkg.deliverables && pkg.deliverables.length > 0) {
+            deliverableBadgesHtml = '<div class="d-flex flex-wrap gap-1 mt-1">';
+            pkg.deliverables.forEach(d => {
+                const sName = d.service_name || d.name || 'Item';
+                const sQty = d.qty || 1;
+                deliverableBadgesHtml += `<span class="badge bg-light text-secondary border fw-normal" style="font-size: 10.5px;"><i class="bi bi-check2"></i> ${sName} (x${sQty})</span>`;
+            });
+            deliverableBadgesHtml += '</div>';
+        }
+
+        const tr = document.createElement('tr');
+        tr.id = `qpkg_row_${idx}`;
+        tr.className = 'qpkg-row';
+        tr.innerHTML = `
+            <td>
+                <div class="fw-bold text-dark">${pkg.package_name}</div>
+                ${pkg.category_name ? `<div class="small text-muted"><i class="bi bi-tag me-1"></i>${pkg.category_name}</div>` : ''}
+                ${deliverableBadgesHtml}
+                <input type="hidden" name="packages[${idx}][event_sub_category_id]" value="${pkg.event_sub_category_id || ''}">
+                <input type="hidden" name="packages[${idx}][package_name]" value="${pkg.package_name}">
+                <input type="hidden" name="packages[${idx}][category_name]" value="${pkg.category_name || ''}">
+            </td>
+            <td>
+                <input type="number" step="0.01" min="0" name="packages[${idx}][unit_price]" id="qpkg_unit_price_${idx}"
+                    class="form-control form-control-sm text-end fw-semibold qpkg-unit-price-input"
+                    value="${parseFloat(pkg.unit_price).toFixed(2)}"
+                    oninput="calcQuotationPackageLine(${idx})">
+            </td>
+            <td>
+                <input type="number" min="1" step="1" name="packages[${idx}][qty]" id="qpkg_qty_${idx}"
+                    class="form-control form-control-sm text-center fw-semibold qpkg-qty-input"
+                    value="${parseInt(pkg.qty) || 1}"
+                    oninput="calcQuotationPackageLine(${idx})">
+            </td>
+            <td class="text-end pe-4 fw-bold text-dark fs-6">
+                <span id="qpkg_total_display_${idx}">${lineTotal.toFixed(2)}</span>
+                <input type="hidden" name="packages[${idx}][total_price]" id="qpkg_total_val_${idx}" class="qpkg-line-total-val" value="${lineTotal.toFixed(2)}">
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn-action btn-action-delete mx-auto" onclick="removeQuotationPackageRow(${idx})" title="Remove package">
+                    <i class="bi bi-trash3"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
         calculateQuotationTotals();
+    }
+
+    function calcQuotationPackageLine(idx) {
+        const unitPrice = parseFloat(document.getElementById(`qpkg_unit_price_${idx}`)?.value) || 0;
+        const qty = parseInt(document.getElementById(`qpkg_qty_${idx}`)?.value) || 1;
+        const lineTotal = unitPrice * qty;
+
+        const displayEl = document.getElementById(`qpkg_total_display_${idx}`);
+        const valEl = document.getElementById(`qpkg_total_val_${idx}`);
+        if (displayEl) displayEl.innerText = lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (valEl) valEl.value = lineTotal.toFixed(2);
+
+        calculateQuotationTotals();
+    }
+
+    function removeQuotationPackageRow(idx) {
+        document.getElementById(`qpkg_row_${idx}`)?.remove();
+        const tbody = document.getElementById('quotationPackagesTbody');
+        const emptyMsg = document.getElementById('noPackagesMsg');
+        if (tbody.querySelectorAll('tr').length === 0 && emptyMsg) {
+            emptyMsg.classList.remove('d-none');
+        }
+        reindexQuotationPackageRows();
+        calculateQuotationTotals();
+    }
+
+    function reindexQuotationPackageRows() {
+        const rows = document.querySelectorAll('#quotationPackagesTbody tr.qpkg-row');
+        rows.forEach((row, i) => {
+            row.querySelectorAll('input').forEach(input => {
+                const name = input.getAttribute('name');
+                if (name && name.startsWith('packages[')) {
+                    input.setAttribute('name', name.replace(/packages\[\d+\]/, `packages[${i}]`));
+                }
+            });
+        });
     }
 
     // Add Quotation Service Row
@@ -885,7 +1037,19 @@
 
     // Calculate Quotation Totals
     function calculateQuotationTotals() {
-        const pkgBasePrice = parseFloat(document.getElementById('packageSellPrice')?.value) || 0;
+        let pkgBasePrice = 0;
+        document.querySelectorAll('.qpkg-line-total-val').forEach(input => {
+            pkgBasePrice += parseFloat(input.value) || 0;
+        });
+
+        const pkgDisplayEl = document.getElementById('packagesTotalDisplay');
+        if (pkgDisplayEl) {
+            pkgDisplayEl.innerText = pkgBasePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        const pkgHiddenInput = document.getElementById('packageSellPrice');
+        if (pkgHiddenInput) {
+            pkgHiddenInput.value = pkgBasePrice.toFixed(2);
+        }
 
         let servicesTotal = 0;
         document.querySelectorAll('#quotationServicesTbody tr').forEach(row => {

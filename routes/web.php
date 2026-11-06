@@ -72,6 +72,7 @@ Route::middleware('auth')->group(function () {
         Route::post('banks/quick-store', [BankController::class, 'quickStore'])->name('banks.quick-store');
         Route::resource('banks', BankController::class);
         Route::post('banks/{bank}/toggle-status', [BankController::class, 'toggleStatus'])->name('banks.toggle-status');
+        Route::post('banks/{bank}/set-primary', [BankController::class, 'setPrimary'])->name('banks.set-primary');
     });
     Route::resource('services', ServiceController::class);
     Route::resource('event-categories', EventCategoryController::class);
@@ -144,4 +145,12 @@ Route::middleware('auth')->group(function () {
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/{id}/mark-read', [NotificationController::class, 'markRead'])->name('notifications.mark-read');
     Route::post('notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.mark-all-read');
+
+    // Audit Logs (Professional Activity Tracking)
+    Route::get('audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
+    Route::get('audit-logs/{auditLog}', [\App\Http\Controllers\AuditLogController::class, 'show'])->name('audit-logs.show');
+
+    // Customer SMS Logs & Retries (Fit SMS Gateway)
+    Route::get('sms-logs', [\App\Http\Controllers\SmsLogController::class, 'index'])->name('sms-logs.index');
+    Route::post('sms-logs/{smsLog}/resend', [\App\Http\Controllers\SmsLogController::class, 'resend'])->name('sms-logs.resend');
 });

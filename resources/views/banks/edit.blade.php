@@ -148,6 +148,28 @@
                                 </label>
                             </div>
                         </div>
+
+                        <!-- Primary Bank Toggle -->
+                        @if(!$hasOtherPrimary)
+                            <div class="col-12">
+                                <div class="form-check form-switch pt-1">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="is_primary" id="isPrimarySwitch" value="1" {{ old('is_primary', $bank->is_primary) ? 'checked' : '' }}>
+                                    <label class="form-check-label small fw-semibold text-dark" for="isPrimarySwitch">
+                                        <i class="bi bi-star-fill text-warning me-1"></i> Designate as Primary Bank Account (Displayed on Invoices)
+                                    </label>
+                                </div>
+                                <small class="text-muted d-block ps-4 ms-2" style="font-size: 11.5px;">
+                                    When enabled, this account's details will appear at the bottom of client invoice printouts. Only one bank can be primary.
+                                </small>
+                            </div>
+                        @else
+                            <div class="col-12">
+                                <div class="p-2.5 rounded-3 bg-light border d-flex align-items-center gap-2 text-muted small">
+                                    <i class="bi bi-info-circle text-primary fs-6"></i>
+                                    <span>Another bank account is currently designated as the Primary Bank. To make this bank primary, remove primary status from the existing one or use "Make Primary" from the banks list.</span>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
 

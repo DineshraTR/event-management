@@ -340,11 +340,11 @@
                     <i class="bi bi-stars"></i>
                 </div> -->
                 <div>
-                    <div class="company-brand-title">Event Management System</div>
+                    <div class="company-brand-title">CEYLON WEDDING COMPANY</div>
                     <div class="company-meta-text">
-                        <span>Event Planning, Design & Luxury Catering Solutions</span><br>
-                        <span>Hotline: +94 11 234 5678 / +94 77 123 4567</span><br>
-                        <span>Email: info@eventmanagement.lk</span>
+                        <span>Photography & Videography Solutions</span><br>
+                        <span>Hotline: 0777524937 | Email: ceylonwedding.co@gmail.com</span><br>
+                        <span>www.ceylonweddingcompany.com</span>
                     </div>
                 </div>
             </div>
@@ -405,6 +405,13 @@
             </div>
 
             <!-- Event & Booking Info -->
+            @php
+                $displayPackages = $order->packages && $order->packages->isNotEmpty()
+                    ? $order->packages
+                    : ($order->event?->packages && $order->event->packages->isNotEmpty()
+                        ? $order->event->packages
+                        : collect());
+            @endphp
             <div class="col-md-6">
                 <div class="info-card-box">
                     <div class="info-card-heading">
@@ -425,7 +432,14 @@
                                     <span class="text-dark">{{ $order->event->venue }}</span>
                                 </div>
                             @endif
-                            @if($order->event->subCategory)
+                            @if($displayPackages->isNotEmpty())
+                                <div>
+                                    Package{{ $displayPackages->count() > 1 ? 's' : '' }}: 
+                                    <span class="text-dark fw-semibold">
+                                        {{ $displayPackages->pluck('package_name')->join(', ') }}
+                                    </span>
+                                </div>
+                            @elseif($order->event->subCategory)
                                 <div>
                                     Package: 
                                     <span class="text-dark fw-semibold">{{ $order->event->subCategory->name }}</span>
@@ -442,28 +456,6 @@
             </div>
         </div>
 
-        <!-- 3. Package Deliverables Summary Box (if event package has included services) -->
-        @if($order->event?->subCategory?->subCategoryServices && $order->event->subCategory->subCategoryServices->isNotEmpty())
-            <div class="p-2.5 bg-light rounded-3 border mb-3">
-                <div class="d-flex align-items-center justify-content-between mb-1 pb-1 border-bottom" style="font-size: 11px;">
-                    <span class="fw-bold text-dark">
-                        Package Included Deliverables ({{ $order->event->subCategory->name }}):
-                    </span>
-                    <span class="badge bg-secondary-subtle text-secondary" style="font-size: 10px;">
-                        Standard Package Items
-                    </span>
-                </div>
-                <div class="d-flex flex-wrap gap-1.5 pt-0.5">
-                    @foreach($order->event->subCategory->subCategoryServices as $ps)
-                        <div class="pkg-tag-pill">
-                            <i class="bi bi-check-circle-fill text-success" style="font-size: 9.5px;"></i>
-                            <span>{{ $ps->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $ps->qty }}</strong></span>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        @endif
-
         <!-- 4. Line Items Table (Deliverables & Charges) -->
         <div class="table-responsive mb-3">
             <table class="table table-invoice mb-0">
@@ -478,6 +470,114 @@
                 </thead>
                 <tbody>
                     @php $itemCount = 1; @endphp
+
+                    <!-- 1. Packages Line Items (with deliverables right inside description) -->
+                    @if($displayPackages->isNotEmpty())
+                        @foreach($displayPackages as $pkg)
+                            @php
+                                $pkgUnit = (float) (
+                                    $pkg->sell_price > 0 
+                                        ? $pkg->sell_price 
+                                        : ($pkg->unit_price > 0 
+                                            ? $pkg->unit_price 
+                                            : ($pkg->qty > 0 && $pkg->total_price > 0 
+                                                ? $pkg->total_price / $pkg->qty 
+                                                : ($pkg->subCategory?->sell_price 
+                                                    ?: ($order->package_sell_price 
+                                                        ?: ($order->event?->package_sell_price 
+                                                            ?: ($order->event?->subCategory?->sell_price ?? 0)))))));
+                                $pkgTot = (float)($pkg->total_price > 0 ? $pkg->total_price : ($pkgUnit * ($pkg->qty ?: 1)));
+                                
+                                $pkgDelivs = $pkg->deliverables;
+                                if (empty($pkgDelivs) && $pkg->subCategory && $pkg->subCategory->subCategoryServices) {
+                                    $pkgDelivs = $pkg->subCategory->subCategoryServices->map(fn($s) => [
+                                        'service_name' => $s->service?->name ?? 'Item',
+                                        'qty' => $s->qty
+                                    ])->toArray();
+                                }
+                                if (empty($pkgDelivs) && $order->event?->subCategory && $order->event->subCategory->subCategoryServices) {
+                                    $pkgDelivs = $order->event->subCategory->subCategoryServices->map(fn($s) => [
+                                        'service_name' => $s->service?->name ?? 'Item',
+                                        'qty' => $s->qty
+                                    ])->toArray();
+                                }
+                            @endphp
+                            <tr style="background-color: #fafbfc;">
+                                <td class="text-center text-muted font-num">{{ $itemCount++ }}</td>
+                                <td class="fw-bold text-dark">
+                                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                        <!-- <i class="bi bi-box-seam text-primary me-1"></i> -->
+                                        <span>{{ $pkg->package_name }}</span>
+                                        @if($pkg->category_name ?? $pkg->subCategory?->category?->name ?? $order->event?->subCategory?->category?->name)
+                                            <small class="text-muted fw-normal">({{ $pkg->category_name ?? $pkg->subCategory?->category?->name ?? $order->event?->subCategory?->category?->name }})</small>
+                                        @endif
+                                    </div>
+
+                                    @if(!empty($pkgDelivs) && is_array($pkgDelivs) && count($pkgDelivs) > 0)
+                                        <div class="mt-1.5 pt-1.5 border-top border-light-subtle">
+                                            <!-- <small class="text-muted d-block fw-bold mb-1 text-uppercase" style="font-size: 10px; letter-spacing: 0.3px;">
+                                                <i class="bi bi-check2-circle text-success me-0.5"></i> Included Deliverables:
+                                            </small> -->
+                                            <div class="d-flex flex-wrap gap-1">
+                                                @foreach($pkgDelivs as $deliv)
+                                                    <span class="badge bg-white text-dark border fw-normal" style="font-size: 10.5px; padding: 3px 6px;">
+                                                        <i class="bi bi-check2 text-success"></i> {{ $deliv['service_name'] ?? $deliv['name'] ?? 'Item' }} <span class="text-muted">&bull; Qty: <strong>{{ $deliv['qty'] ?? 1 }}</strong></span>
+                                                    </span>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
+                                </td>
+                                <td class="text-center font-num">{{ $pkg->qty ?: 1 }}</td>
+                                <td class="text-end font-num">{{ number_format($pkgUnit, 2) }}</td>
+                                <td class="text-end pe-3 fw-bold text-primary font-num">{{ number_format($pkgTot, 2) }}</td>
+                            </tr>
+                        @endforeach
+                    @elseif((float)$order->package_sell_price > 0 || (float)$order->event?->package_sell_price > 0 || $order->event?->subCategory)
+                        @php
+                            $basePkgPrice = (float)($order->package_sell_price ?: ($order->event?->package_sell_price ?: ($order->event?->subCategory?->sell_price ?? 0)));
+                            $basePkgName = $order->package_name ?? $order->event?->package_name ?? $order->event?->subCategory?->name ?? 'Event Package';
+                            $basePkgCat = $order->event?->subCategory?->category?->name;
+                            $baseDelivs = $order->event?->subCategory?->subCategoryServices->map(fn($s) => [
+                                'service_name' => $s->service?->name ?? 'Item',
+                                'qty' => $s->qty
+                            ])->toArray() ?? [];
+                        @endphp
+                        @if($basePkgPrice > 0 || !empty($baseDelivs))
+                            <tr style="background-color: #fafbfc;">
+                                <td class="text-center text-muted font-num">{{ $itemCount++ }}</td>
+                                <td class="fw-bold text-dark">
+                                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                        <!-- <i class="bi bi-box-seam text-primary me-1"></i> -->
+                                        <span>{{ $basePkgName }}</span>
+                                        @if($basePkgCat)
+                                            <small class="text-muted fw-normal">({{ $basePkgCat }})</small>
+                                        @endif
+                                    </div>
+
+                                    @if(!empty($baseDelivs) && count($baseDelivs) > 0)
+                                        <div class="mt-1.5 pt-1.5 border-top border-light-subtle">
+                                            <!-- <small class="text-muted d-block fw-bold mb-1 text-uppercase" style="font-size: 10px; letter-spacing: 0.3px;">
+                                                <i class="bi bi-check2-circle text-success me-0.5"></i> Included Deliverables:
+                                            </small> -->
+                                            <div class="d-flex flex-wrap gap-1">
+                                                @foreach($baseDelivs as $deliv)
+                                                    <span class="badge bg-white text-dark border fw-normal" style="font-size: 10.5px; padding: 3px 6px;">
+                                                        <i class="bi bi-check2 text-success"></i> {{ $deliv['service_name'] }} <span class="text-muted">&bull; Qty: <strong>{{ $deliv['qty'] }}</strong></span>
+                                                    </span>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
+                                </td>
+                                <td class="text-center font-num">1</td>
+                                <td class="text-end font-num">{{ number_format($basePkgPrice, 2) }}</td>
+                                <td class="text-end pe-3 fw-bold text-primary font-num">{{ number_format($basePkgPrice, 2) }}</td>
+                            </tr>
+                        @endif
+                    @endif
+
+                    <!-- 2. Extra Services Line Items -->
                     @forelse($order->services as $line)
                         <tr>
                             <td class="text-center text-muted font-num">{{ $itemCount++ }}</td>
@@ -492,16 +592,7 @@
                             <td class="text-end pe-3 fw-bold text-dark font-num">{{ number_format($line->total_price, 2) }}</td>
                         </tr>
                     @empty
-                        <!-- If order services is empty, show base package if available -->
-                        @if($order->event?->package_sell_price > 0)
-                            <tr>
-                                <td class="text-center text-muted font-num">1</td>
-                                <td class="fw-semibold text-dark">{{ $order->event->subCategory?->name ?? 'Event Package' }} (Base Event Package)</td>
-                                <td class="text-center font-num">1</td>
-                                <td class="text-end font-num">{{ number_format($order->event->package_sell_price, 2) }}</td>
-                                <td class="text-end pe-3 fw-bold text-dark font-num">{{ number_format($order->event->package_sell_price, 2) }}</td>
-                            </tr>
-                        @else
+                        @if($displayPackages->isEmpty() && (float)$order->package_sell_price <= 0 && (float)$order->event?->package_sell_price <= 0)
                             <tr>
                                 <td colspan="5" class="text-center text-muted py-3">No line items recorded on this order.</td>
                             </tr>
@@ -615,22 +706,22 @@
         </div>
 
         @php
-            $primaryBank = $primaryBank ?? \App\Models\Bank::where('is_active', true)->first();
+            $primaryBank = \App\Models\Bank::getPrimaryBank();
         @endphp
         <!-- 6. Bank Transfer Account Instructions (Footer) -->
         <div class="p-2.5 bg-light border rounded-3 mb-3 page-break-avoid" style="font-size: 11px; line-height: 1.45;">
             <div class="fw-bold text-dark mb-1">
-                Payment & Bank Settlement Details:
+                <i class="bi bi-bank me-1 text-primary"></i> Payment & Bank Settlement Details:
             </div>
             <div class="text-secondary">
                 @if(!empty($primaryBank))
                     Bank: <strong class="text-dark">{{ $primaryBank->bank_name }}</strong> &bull;
                     Account Name: <strong class="text-dark">{{ $primaryBank->account_name }}</strong> &bull;
                     Account No: <strong class="text-dark font-num">{{ $primaryBank->account_number }}</strong>
-                    @if(!empty($primaryBank->branch_name)) &bull; Branch: {{ $primaryBank->branch_name }} @endif
+                    @if(!empty($primaryBank->branch)) &bull; Branch: {{ $primaryBank->branch }} @endif
+                    @if(!empty($primaryBank->swift_code)) &bull; SWIFT: {{ $primaryBank->swift_code }} @endif
                     <br>
                 @endif
-                Please make all cheques or bank deposits payable to <strong>Event Management System</strong>. 
                 For direct bank transfers, please mention the Invoice Number <strong class="text-dark font-num">#{{ $order->order_no }}</strong> as payment reference and send the bank receipt via WhatsApp or Email.
             </div>
         </div>
@@ -649,8 +740,9 @@
         </div>
 
         <!-- 8. Polite Footer Notice -->
-        <div class="text-center text-muted mt-2.5 pt-1.5 border-top page-break-avoid" style="font-size: 10px;">
-            Thank you for choosing <strong>Event Management System</strong> for your special occasion. This is a computer-generated invoice.
+        <div class="text-center text-muted mt-3 pt-1.5 border-top page-break-avoid" style="font-size: 10px;">
+            Thank you for choosing <strong>CEYLON WEDDING COMPANY</strong> for your special occasion. This is a computer-generated invoice.<br>
+            Software by <a class="text-muted" href="https://www.tritcal.com" target="_blank" style="text-decoration: none;">Tritcal International LLC | www.tritcal.com </a> 
         </div>
     </main>
 

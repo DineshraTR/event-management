@@ -172,6 +172,16 @@ class ExpenseController extends Controller
             }
         });
 
+        \App\Services\AuditLogger::log(
+            'created',
+            'Expense',
+            "Expense #{$expense->expense_no} - Rs. " . number_format($expense->amount, 2),
+            "Recorded expense #{$expense->expense_no} ({$expense->category}) of Rs. " . number_format($expense->amount, 2) . " via {$expense->payment_method}",
+            $expense->id,
+            null,
+            $expense->toArray()
+        );
+
         $successMsg = ($validated['payment_method'] === 'cheque')
             ? 'Expense recorded and Cheque saved to Cheque Management (Issued).'
             : 'Expense recorded successfully and ledger updated.';
@@ -264,6 +274,8 @@ class ExpenseController extends Controller
             $validated['order_id'] = null;
             $validated['event_id'] = null;
         }
+
+        $oldExpenseValues = $expense->toArray();
 
         DB::transaction(function () use ($expense, $validated) {
             // STEP 1: REVERSE PREVIOUS LEDGER & BANK IMPACT
@@ -371,6 +383,16 @@ class ExpenseController extends Controller
                 ]);
             }
         });
+
+        \App\Services\AuditLogger::log(
+            'updated',
+            'Expense',
+            "Expense #{$expense->expense_no}",
+            "Updated expense voucher #{$expense->expense_no} (Amount: Rs. " . number_format($expense->amount, 2) . ")",
+            $expense->id,
+            $oldExpenseValues,
+            $expense->fresh()->toArray()
+        );
 
         return redirect()->route('reports.expenses')->with('success', 'Expense updated and financial ledgers synced successfully.');
     }
@@ -485,7 +507,20 @@ class ExpenseController extends Controller
             }
 
             // 4. Delete the expense record itself
+            $expenseTitle = "Expense #{$expense->expense_no} - Rs. " . number_format($expense->amount, 2);
+            $oldValues = $expense->toArray();
+
             $expense->delete();
+
+            \App\Services\AuditLogger::log(
+                'deleted',
+                'Expense',
+                $expenseTitle,
+                "Deleted expense voucher {$expenseTitle}",
+                $expense->id,
+                $oldValues,
+                null
+            );
         });
 
         return redirect()->back()->with('success', 'Expense deleted successfully and an official reversal entry has been added to the ledger.');

@@ -79,6 +79,17 @@ class CustomerController extends Controller
         ]);
         $validated['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : true;
         $customer = Customer::create($validated);
+
+        \App\Services\AuditLogger::log(
+            'created',
+            'Customer',
+            $customer->name,
+            "Added new customer {$customer->name} ({$customer->phone})",
+            $customer->id,
+            null,
+            $customer->toArray()
+        );
+
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'customer' => $customer]);
         }
@@ -117,13 +128,37 @@ class CustomerController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
         $validated['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : true;
+        $oldValues = $customer->toArray();
         $customer->update($validated);
+
+        \App\Services\AuditLogger::log(
+            'updated',
+            'Customer',
+            $customer->name,
+            "Updated profile details for customer {$customer->name}",
+            $customer->id,
+            $oldValues,
+            $customer->fresh()->toArray()
+        );
+
         return redirect()->route('customers.index')->with('success', 'Customer updated successfully.');
     }
 
     public function destroy(Customer $customer)
     {
+        $oldValues = $customer->toArray();
         $customer->update(['is_active' => false]);
+
+        \App\Services\AuditLogger::log(
+            'deactivated',
+            'Customer',
+            $customer->name,
+            "Deactivated customer {$customer->name}",
+            $customer->id,
+            $oldValues,
+            ['is_active' => false]
+        );
+
         return redirect()->route('customers.index')->with('success', 'Customer deactivated successfully.');
     }
 
