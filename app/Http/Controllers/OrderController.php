@@ -724,8 +724,13 @@ class OrderController extends Controller
 
     public function print(Order $order)
     {
+        $order->recalculateTotals();
         $order->load([
             'customer',
+            'packages.subCategory.category',
+            'packages.subCategory.subCategoryServices.service',
+            'event.packages.subCategory.category',
+            'event.packages.subCategory.subCategoryServices.service',
             'event.subCategory.category',
             'event.subCategory.subCategoryServices.service',
             'services.service',
@@ -733,7 +738,7 @@ class OrderController extends Controller
             'payments.bank',
         ]);
 
-        $primaryBank = \App\Models\Bank::where('is_active', true)->first();
+        $primaryBank = \App\Models\Bank::getPrimaryBank();
 
         return view('orders.print', compact('order', 'primaryBank'));
     }

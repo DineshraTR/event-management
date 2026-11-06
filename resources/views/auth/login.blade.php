@@ -135,11 +135,17 @@
             position: absolute;
             bottom: 40px;
             left: 80px;
+            right: 80px;
             z-index: 2;
-            opacity: 0.6;
+            opacity: 0.75;
             font-size: 0.85rem;
-            font-weight: 600;
+            font-weight: 500;
             letter-spacing: 0.3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
         }
 
         /* Right Side: Login Panel */
@@ -326,11 +332,12 @@
                     </div>
                 </div> -->
                 <h1>Empowering Events with Intelligence</h1>
-                <p>Welcome to <strong>Event Management</strong>. Experience the next generation of event planning, bookings, quotations, and financial tracking streamlined for success.</p>
+                <p>Welcome to <strong>CEYLON WEDDING COMPANY</strong>. Experience the next generation of event planning, bookings, quotations, and financial tracking streamlined for success.</p>
             </div>
 
             <div class="copyright-bar">
-                © {{ date('Y') }} Event Management. All rights reserved.
+                <span>© {{ date('Y') }} CEYLON WEDDING COMPANY. All rights reserved.</span>
+                <span>Software by <a href="https://www.tritcal.com" target="_blank" style="color: #fff; text-decoration: underline;">Tritcal International LLC</a></span>
             </div>
         </div>
 

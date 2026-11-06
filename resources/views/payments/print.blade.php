@@ -423,7 +423,8 @@
 
         <!-- 6. Footer Notice -->
         <div class="text-center text-muted mt-3 pt-2 border-top" style="font-size: 9.5px;">
-            Thank you for your payment! This is an official computer-generated receipt issued by <strong>Event Management System</strong>.
+            Thank you for your payment! This is an official computer-generated receipt issued by <strong>CEYLON WEDDING COMPANY</strong>.<br>
+            Software by <a class="text-muted" href="https://www.tritcal.com" target="_blank" style="text-decoration: none;">Tritcal International LLC | www.tritcal.com </a>
         </div>
     </main>
 

@@ -380,29 +380,6 @@
                 }
             }
         @endphp
-        @if($allDeliverables->isNotEmpty())
-            <div class="p-3 bg-light rounded-3 border mb-4">
-                <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom">
-                    <span class="fw-bold small text-dark">
-                        <i class="bi bi-check2-circle text-success me-1"></i> Standard Deliverables Included in Package:
-                    </span>
-                    <span class="badge bg-secondary-subtle text-secondary small" style="font-size: 10px;">
-                        {{ $allDeliverables->count() }} Deliverable{{ $allDeliverables->count() > 1 ? 's' : '' }} Included
-                    </span>
-                </div>
-                <div class="d-flex flex-wrap gap-2 pt-1">
-                    @foreach($allDeliverables as $deliv)
-                        <div class="pkg-tag-pill">
-                            <i class="bi bi-check-circle-fill text-success" style="font-size: 10px;"></i>
-                            <span>{{ $deliv['name'] }} &bull; Qty: <strong>{{ $deliv['qty'] }}</strong></span>
-                            @if($displayPackages->count() > 1)
-                                <span class="text-muted" style="font-size: 9.5px;">({{ $deliv['package_name'] }})</span>
-                            @endif
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        @endif
 
         <!-- 4. Line Items Table (Deliverables & Charges) -->
         <div class="table-responsive mb-4">
@@ -435,17 +412,45 @@
                                                         ?: ($quotation->subCategory?->sell_price ?? 0))))));
                                 $pkgTot = (float)($pkg->total_price > 0 ? $pkg->total_price : ($pkgUnit * ($pkg->qty ?: 1)));
                             @endphp
+                            @php
+                                $pkgDelivs = $pkg->deliverables;
+                                if (empty($pkgDelivs) && $pkg->subCategory && $pkg->subCategory->subCategoryServices) {
+                                    $pkgDelivs = $pkg->subCategory->subCategoryServices->map(fn($s) => [
+                                        'service_name' => $s->service?->name ?? 'Item',
+                                        'qty' => $s->qty
+                                    ])->toArray();
+                                }
+                                if (empty($pkgDelivs) && $quotation->subCategory && $quotation->subCategory->subCategoryServices) {
+                                    $pkgDelivs = $quotation->subCategory->subCategoryServices->map(fn($s) => [
+                                        'service_name' => $s->service?->name ?? 'Item',
+                                        'qty' => $s->qty
+                                    ])->toArray();
+                                }
+                            @endphp
                             <tr style="background-color: #fafbfc;">
                                 <td class="text-center text-muted font-monospace">{{ $itemCount++ }}</td>
                                 <td class="fw-bold text-dark">
-                                    <i class="bi bi-box-seam text-primary me-1"></i>
-                                    {{ $pkg->package_name }}
-                                    @if($pkg->category_name ?? $pkg->subCategory?->category?->name)
-                                        <small class="text-muted">({{ $pkg->category_name ?? $pkg->subCategory?->category?->name }})</small>
+                                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                        <!-- <i class="bi bi-box-seam text-primary me-1"></i> -->
+                                        <span>{{ $pkg->package_name }}</span>
+                                        @if($pkg->category_name ?? $pkg->subCategory?->category?->name)
+                                            <small class="text-muted fw-normal">({{ $pkg->category_name ?? $pkg->subCategory?->category?->name }})</small>
+                                        @endif
+                                    </div>
+                                    @if(!empty($pkgDelivs) && is_array($pkgDelivs) && count($pkgDelivs) > 0)
+                                        <div class="mt-1.5 pt-1.5 border-top border-light-subtle">
+                                            <!-- <small class="text-muted d-block fw-bold mb-1 text-uppercase" style="font-size: 10px; letter-spacing: 0.3px;">
+                                                <i class="bi bi-check2-circle text-success me-0.5"></i> Included Deliverables:
+                                            </small> -->
+                                            <div class="d-flex flex-wrap gap-1">
+                                                @foreach($pkgDelivs as $deliv)
+                                                    <span class="badge bg-white text-dark border fw-normal" style="font-size: 10.5px; padding: 3px 6px;">
+                                                        <i class="bi bi-check2 text-success"></i> {{ $deliv['service_name'] ?? $deliv['name'] ?? 'Item' }} <span class="text-muted">&bull; Qty: <strong>{{ $deliv['qty'] ?? 1 }}</strong></span>
+                                                    </span>
+                                                @endforeach
+                                            </div>
+                                        </div>
                                     @endif
-                                    <small class="text-muted d-block" style="font-size: 11px;">
-                                        Standard package inclusions and deliverables
-                                    </small>
                                 </td>
                                 <td class="text-center font-monospace">{{ $pkg->qty ?: 1 }}</td>
                                 <td class="text-end font-monospace">{{ number_format($pkgUnit, 2) }}</td>
@@ -453,14 +458,36 @@
                             </tr>
                         @endforeach
                     @elseif($pkgBasePrice > 0)
+                        @php
+                            $singleDelivs = $quotation->subCategory?->subCategoryServices->map(fn($s) => [
+                                'service_name' => $s->service?->name ?? 'Item',
+                                'qty' => $s->qty
+                            ])->toArray() ?? [];
+                        @endphp
                         <tr style="background-color: #fafbfc;">
                             <td class="text-center text-muted font-monospace">{{ $itemCount++ }}</td>
                             <td class="fw-bold text-dark">
-                                <i class="bi bi-box-seam text-primary me-1"></i>
-                                {{ $quotation->package_name ?? $quotation->subCategory?->name ?? 'Event Package' }} (Base Package Preset)
-                                <small class="text-muted d-block" style="font-size: 11px;">
-                                    Includes all standard package inclusions and deliverables listed above
-                                </small>
+                                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                    <!-- <i class="bi bi-box-seam text-primary me-1"></i> -->
+                                    <span>{{ $quotation->package_name ?? $quotation->subCategory?->name ?? 'Event Package' }}</span>
+                                    @if($quotation->subCategory?->category)
+                                        <small class="text-muted fw-normal">({{ $quotation->subCategory->category->name }})</small>
+                                    @endif
+                                </div>
+                                @if(!empty($singleDelivs) && count($singleDelivs) > 0)
+                                    <div class="mt-1.5 pt-1.5 border-top border-light-subtle">
+                                        <!-- <small class="text-muted d-block fw-bold mb-1 text-uppercase" style="font-size: 10px; letter-spacing: 0.3px;">
+                                            <i class="bi bi-check2-circle text-success me-0.5"></i> Included Deliverables:
+                                        </small> -->
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach($singleDelivs as $deliv)
+                                                <span class="badge bg-white text-dark border fw-normal" style="font-size: 10.5px; padding: 3px 6px;">
+                                                    <i class="bi bi-check2 text-success"></i> {{ $deliv['service_name'] }} <span class="text-muted">&bull; Qty: <strong>{{ $deliv['qty'] }}</strong></span>
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
                             </td>
                             <td class="text-center font-monospace">1</td>
                             <td class="text-end font-monospace">{{ number_format($pkgBasePrice, 2) }}</td>
@@ -589,6 +616,12 @@
             <div class="col-4">
                 <div class="sign-line">Client Acceptance & Signature</div>
             </div>
+        </div>
+
+        <!-- 7. Polite Footer Notice -->
+        <div class="text-center text-muted mt-3 pt-1.5 border-top page-break-avoid" style="font-size: 10px;">
+            Thank you for choosing <strong>CEYLON WEDDING COMPANY</strong> for your special occasion. This is a computer-generated quotation.<br>
+            Software by <a class="text-muted" href="https://www.tritcal.com" target="_blank" style="text-decoration: none;">Tritcal International LLC | www.tritcal.com </a> 
         </div>
     </main>
 
