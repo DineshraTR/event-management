@@ -99,7 +99,7 @@
                                 Branch Name / Location
                             </label>
                             <input type="text" name="branch" class="form-control" 
-                                value="{{ old('branch') }}" placeholder="e.g. Colombo 03 - Kollupitiya">
+                                value="{{ old('branch') }}" placeholder="e.g. Location">
                         </div>
 
                         <!-- Swift Code -->
@@ -148,6 +148,21 @@
                                 </label>
                             </div>
                         </div>
+
+                        <!-- Primary Bank Toggle (Only shown if NO primary bank currently exists) -->
+                        @if(!$hasPrimaryBank)
+                            <div class="col-12">
+                                <div class="form-check form-switch pt-1">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="is_primary" id="isPrimarySwitch" value="1" {{ old('is_primary') ? 'checked' : '' }}>
+                                    <label class="form-check-label small fw-semibold text-dark" for="isPrimarySwitch">
+                                        <i class="bi bi-star-fill text-warning me-1"></i> Designate as Primary Bank Account (Displayed on Invoices)
+                                    </label>
+                                </div>
+                                <small class="text-muted d-block ps-4 ms-2" style="font-size: 11.5px;">
+                                    When enabled, this account's details will appear at the bottom of client invoice printouts. Only one bank can be primary.
+                                </small>
+                            </div>
+                        @endif
                     </div>
                 </div>
 

@@ -358,7 +358,11 @@
                                 <a href="{{ route('payments.print', $payment) }}" target="_blank" class="btn-action btn-action-view" style="width: 70px; height: 28px;" title="View & Print Payment Receipt in New Tab">
                                     <i class="bi bi-eye"></i> <span>View</span>
                                 </a>
-                                <form method="POST" action="{{ route('payments.destroy', $payment) }}" class="m-0 p-0" style="width: 70px;" onsubmit="return confirm('Are you sure you want to delete this payment record? This will recalculate the order balance.');">
+                                <form method="POST" action="{{ route('payments.destroy', $payment) }}" class="m-0 p-0" style="width: 70px;" onsubmit="handleDeleteConfirmation(event, this, {
+                                    type: 'Payment Receipt',
+                                    title: '{{ $payment->payment_no }} (Rs. {{ number_format($payment->amount, 2) }})',
+                                    hasPayments: false
+                                });">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn-action btn-action-delete" style="width: 70px; height: 28px;" title="Delete Payment">

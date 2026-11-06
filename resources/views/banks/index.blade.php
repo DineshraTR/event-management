@@ -182,8 +182,13 @@
                                     <i class="bi bi-bank"></i>
                                 </div>
                                 <div>
-                                    <div class="fw-bold text-dark" style="font-size: 13.5px;">
-                                        {{ $bank->bank_name }}
+                                    <div class="fw-bold text-dark d-flex align-items-center gap-1.5 flex-wrap" style="font-size: 13.5px;">
+                                        <span>{{ $bank->bank_name }}</span>
+                                        @if($bank->is_primary)
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-0.5" style="font-size: 10px; font-weight: 700;">
+                                                <i class="bi bi-star-fill text-warning me-0.5"></i> Primary
+                                            </span>
+                                        @endif
                                     </div>
                                     @if($bank->branch)
                                         <small class="text-muted" style="font-size: 11.5px;">
@@ -254,6 +259,16 @@
                         <!-- Actions -->
                         <td class="text-end pe-4 text-nowrap">
                             <div class="d-inline-flex align-items-center justify-content-end gap-1.5">
+                                @if(!$bank->is_primary && $bank->is_active)
+                                    <!-- Set as Primary -->
+                                    <form method="POST" action="{{ route('banks.set-primary', $bank) }}" class="m-0 p-0" onsubmit="return confirm('Set {{ addslashes($bank->bank_name) }} as the Primary Bank for invoices & quotations?');">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-outline-warning text-dark px-2 py-0.5 d-inline-flex align-items-center gap-1" style="height: 28px; font-size: 11px; font-weight: 600;" title="Designate as Primary Bank">
+                                            <i class="bi bi-star"></i> Set Primary
+                                        </button>
+                                    </form>
+                                @endif
+
                                 <!-- Edit -->
                                 <a href="{{ route('banks.edit', $bank) }}" class="btn-action btn-action-edit" style="width: 70px; height: 28px;" title="Edit Bank Details">
                                     <i class="bi bi-pencil"></i> <span>Edit</span>

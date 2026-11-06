@@ -436,7 +436,11 @@
                                                 <i class="bi bi-trash3 text-muted"></i>
                                             </button>
                                         @else
-                                            <form method="POST" action="{{ route('expenses.destroy', $exp->id) }}" onsubmit="return confirm('Delete this expense?');" class="d-inline">
+                                            <form method="POST" action="{{ route('expenses.destroy', $exp->id) }}" onsubmit="handleDeleteConfirmation(event, this, {
+                                                type: 'Expense Voucher',
+                                                title: '{{ $exp->expense_no }} - {{ addslashes($exp->description) }}',
+                                                hasPayments: false
+                                            });" class="d-inline">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-outline-danger btn-action" title="Delete">
@@ -562,7 +566,11 @@
                                                 <i class="bi bi-trash3 text-muted"></i>
                                             </button>
                                         @else
-                                            <form method="POST" action="{{ route('expenses.destroy', $exp->id) }}" onsubmit="return confirm('Delete this expense?');" class="d-inline">
+                                            <form method="POST" action="{{ route('expenses.destroy', $exp->id) }}" onsubmit="handleDeleteConfirmation(event, this, {
+                                                type: 'Expense Voucher',
+                                                title: '{{ $exp->expense_no }} - {{ addslashes($exp->description) }}',
+                                                hasPayments: false
+                                            });" class="d-inline">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-outline-danger btn-action" title="Delete">

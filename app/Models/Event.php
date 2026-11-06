@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 
 class Event extends Model
 {
@@ -56,6 +57,11 @@ class Event extends Model
         return $this->belongsTo(EventSubCategory::class, 'event_sub_category_id');
     }
 
+    public function packages(): HasMany
+    {
+        return $this->hasMany(EventPackage::class);
+    }
+
     public function additionalServices(): HasMany
     {
         return $this->hasMany(EventService::class);
@@ -81,15 +87,41 @@ class Event extends Model
         return $this->hasMany(Expense::class);
     }
 
+    public function hasPayments(): bool
+    {
+        if ($this->relationLoaded('orders')) {
+            foreach ($this->orders as $o) {
+                if ((float)$o->paid_amount > 0) return true;
+                if ($o->relationLoaded('payments') && $o->payments->isNotEmpty()) return true;
+            }
+        }
+        if ($this->relationLoaded('order') && $this->order) {
+            if ((float)$this->order->paid_amount > 0) return true;
+            if ($this->order->relationLoaded('payments') && $this->order->payments->isNotEmpty()) return true;
+        }
+        return $this->orders()->where('paid_amount', '>', 0)->exists() 
+            || $this->orders()->whereHas('payments')->exists();
+    }
+
     public function recalculateTotals(): void
     {
-        $additionalTotal = $this->additionalServices()->sum('total_price');
-        $otherChargesTotal = $this->otherCharges()->sum('amount');
-        $subTotal = $this->package_sell_price + $additionalTotal + $otherChargesTotal;
-        $totalAmount = $subTotal - $this->discount;
-        $balance = $totalAmount - $this->advance_payment;
+        $packageSellTotal = $this->packages()->exists() 
+            ? (float) $this->packages()->sum('total_price') 
+            : (float) $this->package_sell_price;
+
+        $packageCostTotal = $this->packages()->exists()
+            ? (float) $this->packages()->sum(DB::raw('cost_price * qty'))
+            : (float) $this->package_cost_price;
+
+        $additionalTotal = (float) $this->additionalServices()->sum('total_price');
+        $otherChargesTotal = (float) $this->otherCharges()->sum('amount');
+        $subTotal = $packageSellTotal + $additionalTotal + $otherChargesTotal;
+        $totalAmount = max(0, $subTotal - (float) $this->discount);
+        $balance = max(0, $totalAmount - (float) $this->advance_payment);
 
         $this->update([
+            'package_sell_price' => $packageSellTotal,
+            'package_cost_price' => $packageCostTotal,
             'additional_services_total' => $additionalTotal,
             'other_charges_total' => $otherChargesTotal,
             'sub_total' => $subTotal,

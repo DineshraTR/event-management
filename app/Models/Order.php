@@ -51,6 +51,11 @@ class Order extends Model
         return $this->belongsTo(EventSubCategory::class, 'event_sub_category_id');
     }
 
+    public function packages(): HasMany
+    {
+        return $this->hasMany(OrderPackage::class);
+    }
+
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
@@ -79,6 +84,17 @@ class Order extends Model
     public function cheques(): HasMany
     {
         return $this->hasMany(Cheque::class);
+    }
+
+    public function hasPayments(): bool
+    {
+        if ((float)$this->paid_amount > 0) {
+            return true;
+        }
+        if ($this->relationLoaded('payments')) {
+            return $this->payments->isNotEmpty();
+        }
+        return $this->payments()->exists();
     }
 
     public function recalculateTotals(): void

@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'fitsms' => [
+        'url' => env('FIT_SMS_API_URL', 'https://app.fitsms.lk/api/v4/sms/send'),
+        'token' => env('FIT_SMS_API_TOKEN', '537|quXH5htDkJSpCDDLhUhn2v0bKVb1MCto01oOSt4Ifdf5c4f8'),
+        'sender_id' => env('FIT_SMS_SENDER_ID', 'CEYLON WEDS'),
+    ],
+
 ];

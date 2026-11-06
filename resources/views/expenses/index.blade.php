@@ -315,7 +315,11 @@
                                         <i class="bi bi-trash text-muted"></i>
                                     </button>
                                 @else
-                                    <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete this expense?');">
+                                    <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="d-inline m-0 p-0" onsubmit="handleDeleteConfirmation(event, this, {
+                                        type: 'Expense Voucher',
+                                        title: '{{ $expense->expense_no }} - {{ addslashes($expense->description) }}',
+                                        hasPayments: false
+                                    });">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1" title="Delete Expense" style="font-size: 12px;">

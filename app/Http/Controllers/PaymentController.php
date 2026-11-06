@@ -127,6 +127,19 @@ class PaymentController extends Controller
             ? 'Payment recorded and Cheque saved to Cheque Management (In Hand).' 
             : 'Payment recorded successfully!';
 
+        \App\Services\AuditLogger::log(
+            'payment_received',
+            'Payment',
+            "Receipt #{$payment->payment_no} - Rs. " . number_format($payment->amount, 2),
+            "Recorded {$payment->payment_type} payment of Rs. " . number_format($payment->amount, 2) . " via {$payment->payment_method} for Order #{$payment->order?->order_no}",
+            $payment->id,
+            null,
+            $payment->toArray()
+        );
+
+        // Send customer SMS with payment receipt details via Fit SMS (Mask: CEYLON WEDS)
+        \App\Services\FitSmsService::sendPaymentReceivedSms($payment);
+
         return redirect()->route('payments.print', ['payment' => $payment->id, 'auto_print' => 1])
             ->with('success', $successMsg . ' Payment receipt voucher ready.');
     }
@@ -164,16 +177,42 @@ class PaymentController extends Controller
             'payment_date' => 'required|date',
             'notes' => 'nullable|string',
         ]);
+        $oldValues = $payment->toArray();
         $payment->update($validated);
         $payment->order->recalculateTotals();
+
+        \App\Services\AuditLogger::log(
+            'updated',
+            'Payment',
+            "Receipt #{$payment->payment_no}",
+            "Updated payment #{$payment->payment_no} (Amount: Rs. " . number_format($payment->amount, 2) . ")",
+            $payment->id,
+            $oldValues,
+            $payment->fresh()->toArray()
+        );
+
         return redirect()->route('payments.index')->with('success', 'Payment updated successfully!');
     }
 
     public function destroy(Payment $payment)
     {
         $order = $payment->order;
+        $payTitle = "Receipt #{$payment->payment_no} (Rs. " . number_format($payment->amount, 2) . ")";
+        $oldValues = $payment->toArray();
+
         $payment->delete();
         $order->recalculateTotals();
+
+        \App\Services\AuditLogger::log(
+            'deleted',
+            'Payment',
+            $payTitle,
+            "Deleted payment {$payTitle} linked to Order #{$order?->order_no}",
+            $payment->id,
+            $oldValues,
+            null
+        );
+
         return redirect()->route('payments.index')->with('success', 'Payment deleted.');
     }
 }

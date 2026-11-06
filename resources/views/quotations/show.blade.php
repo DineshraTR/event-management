@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Quotation ' . $quotation->quotation_no . ' Details')
+@section('title', ($quotation->event_name ?: 'Quotation') . ' • Quotation #' . $quotation->quotation_no)
 @section('page-title', 'Quotation Details')
 
 @section('content')
@@ -40,6 +40,19 @@
         gap: 8px;
     }
 
+    .package-service-pill {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 7px 12px;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #334155;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
     .financial-line-item {
         display: flex;
         justify-content: space-between;
@@ -57,6 +70,22 @@
     }
 </style>
 
+@php
+    $displayPackages = $quotation->packages && $quotation->packages->isNotEmpty() ? $quotation->packages : collect();
+    $pkgBasePrice = $displayPackages->isNotEmpty()
+        ? (float) $displayPackages->sum(function($p) use ($quotation) {
+            $unit = (float)($p->sell_price > 0 ? $p->sell_price : ($p->unit_price > 0 ? $p->unit_price : ($p->subCategory?->sell_price ?: ($quotation->package_sell_price ?: ($quotation->subCategory?->sell_price ?? 0)))));
+            return (float)($p->total_price > 0 ? $p->total_price : ($unit * ($p->qty ?: 1)));
+        })
+        : (float)($quotation->package_sell_price ?: ($quotation->subCategory?->sell_price ?? 0));
+    $svcTotal = (float)($quotation->services->isNotEmpty() ? $quotation->services->sum('total_price') : $quotation->additional_services_total);
+    $chrTotal = (float)($quotation->otherCharges->isNotEmpty() ? $quotation->otherCharges->sum('amount') : $quotation->other_charges_total);
+    $calculatedSubTotal = $pkgBasePrice + $svcTotal + $chrTotal;
+    $finalSubTotal = (float)($quotation->sub_total > 0 ? $quotation->sub_total : $calculatedSubTotal);
+    $discountVal = (float)($quotation->discount ?? 0);
+    $finalTotalAmount = (float)($quotation->total_amount > 0 ? $quotation->total_amount : max(0, $finalSubTotal - $discountVal));
+@endphp
+
 <!-- Top Header (Tritcal Style) -->
 <div class="quotation-show-header mb-4">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -67,7 +96,10 @@
             </div>
             <div>
                 <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                    <h4 class="mb-0 fw-bold text-dark" style="letter-spacing: -0.3px;">Quotation {{ $quotation->quotation_no }}</h4>
+                    <h4 class="mb-0 fw-bold text-dark" style="letter-spacing: -0.3px;">{{ $quotation->event_name ?: ('Quotation #' . $quotation->quotation_no) }}</h4>
+                    <span class="badge bg-light text-dark border font-monospace px-2 py-0.5" style="font-size: 11.5px; font-weight: 700;">
+                        {{ $quotation->quotation_no }}
+                    </span>
                     @if($quotation->status === 'accepted')
                         <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1" style="font-size: 11.5px; font-weight: 600;">
                             <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block; margin-right: 4px;"></span> Accepted
@@ -92,23 +124,23 @@
                     @if($quotation->valid_until)
                         &bull; Valid Until: <span class="{{ $quotation->valid_until->isPast() ? 'text-danger fw-semibold' : 'text-dark' }}">{{ $quotation->valid_until->format('M d, Y') }}</span>
                     @endif
-                    @if($quotation->event_name)
-                        &bull; Event: <span class="text-secondary">{{ $quotation->event_name }}</span>
+                    @if($quotation->venue)
+                        &bull; Venue: <span class="text-secondary"><i class="bi bi-geo-alt me-0.5"></i>{{ $quotation->venue }}</span>
                     @endif
                 </p>
             </div>
         </div>
 
-        <!-- Header Action Buttons -->
+        <!-- Action Buttons -->
         <div class="d-flex align-items-center gap-2 flex-wrap">
             <a href="{{ route('quotations.index') }}" class="btn btn-outline-secondary shadow-sm">
                 <i class="bi bi-arrow-left me-1"></i> Back to Quotations
             </a>
-            <a href="{{ route('quotations.edit', $quotation) }}" class="btn btn-outline-primary shadow-sm">
+            <a href="{{ route('quotations.edit', $quotation) }}" class="btn btn-primary shadow-sm">
                 <i class="bi bi-pencil me-1"></i> Edit Quotation
             </a>
             <a href="{{ route('quotations.print', $quotation) }}" class="btn btn-outline-dark shadow-sm" target="_blank" rel="noopener noreferrer">
-                <i class="bi bi-printer me-1"></i> Print / Export
+                <i class="bi bi-printer me-1"></i> Print Proposal
             </a>
             <a href="{{ route('quotations.convert-to-event', $quotation) }}" class="btn btn-success shadow-sm" target="_blank">
                 <i class="bi bi-calendar-check me-1"></i> Convert to Event
@@ -118,13 +150,13 @@
 </div>
 
 <div class="row g-4">
-    <!-- Left Column: Event Proposal Info, Services Table, Other Charges, Remarks -->
+    <!-- Left Column: Details, Package Services, Extras, Charges & Remarks -->
     <div class="col-12 col-lg-8">
-        <!-- 1. Event & Scope Details Card -->
+        <!-- 1. Event & Schedule Information -->
         <div class="section-card">
             <div class="section-card-header">
                 <h6 class="section-card-title">
-                    <i class="bi bi-calendar-event text-primary"></i> Event & Scope Information
+                    <i class="bi bi-info-circle text-primary"></i> Proposal & Event Scope Information
                 </h6>
                 @if($quotation->subCategory)
                     <span class="badge bg-light text-dark border">
@@ -137,14 +169,14 @@
             <div class="card-body p-4">
                 <div class="row g-3">
                     <div class="col-sm-6">
-                        <small class="text-muted d-block" style="font-size: 11.5px;">PROPOSED EVENT NAME</small>
+                        <small class="text-muted d-block" style="font-size: 11.5px;">PROPOSED EVENT / OCCASION</small>
                         <div class="fw-semibold text-dark fs-6 mt-1">{{ $quotation->event_name ?: 'General Event Proposal' }}</div>
                     </div>
                     <div class="col-sm-6">
                         <small class="text-muted d-block" style="font-size: 11.5px;">PROPOSED EVENT DATE</small>
-                        <div class="fw-semibold text-dark mt-1">
+                        <div class="fw-semibold text-dark fs-6 mt-1">
                             @if($quotation->event_date)
-                                <i class="bi bi-calendar3 text-primary me-1"></i>
+                                <i class="bi bi-calendar3 me-1 text-primary"></i>
                                 {{ $quotation->event_date->format('l, F j, Y') }}
                             @else
                                 <span class="text-muted">Not specified</span>
@@ -152,21 +184,7 @@
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <small class="text-muted d-block" style="font-size: 11.5px;">PACKAGE / CATEGORY</small>
-                        <div class="fw-semibold text-dark mt-1">
-                            @if($quotation->subCategory || $quotation->package_name)
-                                <span>{{ $quotation->package_name ?? $quotation->subCategory->name }}</span>
-                                <span class="badge bg-primary-subtle text-primary border ms-1">
-                                    Base: Rs. {{ number_format($quotation->package_sell_price ?? $quotation->subCategory?->sell_price ?? 0, 2) }}
-                                </span>
-                                <small class="text-muted d-block">Category: {{ $quotation->subCategory?->category?->name ?? 'Package Preset' }}</small>
-                            @else
-                                <span class="text-muted">Custom Package & Services</span>
-                            @endif
-                        </div>
-                    </div>
-                    <div class="col-sm-6">
-                        <small class="text-muted d-block" style="font-size: 11.5px;">PROPOSED VENUE / LOCATION</small>
+                        <small class="text-muted d-block" style="font-size: 11.5px;">VENUE / RECEPTION LOCATION</small>
                         <div class="fw-semibold text-dark mt-1">
                             @if($quotation->venue)
                                 <i class="bi bi-geo-alt-fill text-danger me-1"></i> {{ $quotation->venue }}
@@ -175,25 +193,21 @@
                             @endif
                         </div>
                     </div>
-
-                    @if($quotation->subCategory && $quotation->subCategory->subCategoryServices->isNotEmpty())
-                        <div class="col-12 mt-3 pt-3 border-top">
-                            <div class="d-flex align-items-center justify-content-between mb-2">
-                                <small class="text-muted fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
-                                    <i class="bi bi-check-circle-fill text-success me-1"></i> Deliverables Included in Package Preset:
-                                </small>
-                                <span class="badge bg-light text-secondary border">
-                                    {{ $quotation->subCategory->subCategoryServices->count() }} Deliverables
-                                </span>
-                            </div>
-                            <div class="d-flex flex-wrap gap-2">
-                                @foreach($quotation->subCategory->subCategoryServices as $pkgSvc)
-                                    <span class="badge bg-light text-dark border px-2.5 py-1.5" style="font-weight: 500; font-size: 12px;">
-                                        <i class="bi bi-check2 text-primary me-1"></i>
-                                        {{ $pkgSvc->service?->name ?? 'Service #' . $pkgSvc->service_id }}
-                                        <span class="text-muted ms-1">&bull; Qty: <strong>{{ $pkgSvc->qty }}</strong></span>
-                                    </span>
-                                @endforeach
+                    <div class="col-sm-6">
+                        <small class="text-muted d-block" style="font-size: 11.5px;">QUOTATION ISSUE & VALIDITY</small>
+                        <div class="text-dark mt-1">
+                            <i class="bi bi-clock-history me-1 text-secondary"></i>
+                            {{ $quotation->quotation_date?->format('M d, Y') ?? 'N/A' }}
+                            @if($quotation->valid_until)
+                                &bull; <span class="{{ $quotation->valid_until->isPast() ? 'text-danger fw-semibold' : 'text-muted' }}">Expires: {{ $quotation->valid_until->format('M d, Y') }}</span>
+                            @endif
+                        </div>
+                    </div>
+                    @if($quotation->remarks)
+                        <div class="col-12 mt-2 pt-3 border-top">
+                            <small class="text-muted d-block mb-1" style="font-size: 11.5px;">SPECIAL CLIENT REMARKS & SCOPE NOTES</small>
+                            <div class="p-3 bg-light rounded-3 text-secondary" style="font-size: 13px; line-height: 1.6; white-space: pre-line;">
+                                {{ $quotation->remarks }}
                             </div>
                         </div>
                     @endif
@@ -201,58 +215,160 @@
             </div>
         </div>
 
-        <!-- 2. Quoted Services & Items Table -->
+        <!-- 2. Booked Packages & Included Services (Multi-Package Supported) -->
         <div class="section-card">
             <div class="section-card-header">
                 <h6 class="section-card-title">
-                    <i class="bi bi-stars text-primary"></i> Additional Services & Deliverables
+                    <i class="bi bi-box-seam text-primary"></i> Booked Packages & Included Services
                 </h6>
                 <span class="badge bg-light text-dark border">
-                    {{ $quotation->services->count() }} Additional Items
+                    Total Packages: Rs. {{ number_format($pkgBasePrice, 2) }}
+                </span>
+            </div>
+            <div class="card-body p-4">
+                @if($displayPackages->isNotEmpty())
+                    <div class="table-responsive mb-0">
+                        <table class="table modern-table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Package Name</th>
+                                    <th>Category</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Unit Price</th>
+                                    <th class="text-end">Total Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($displayPackages as $pkg)
+                                    @php
+                                        $pkgUnitPrice = (float) (
+                                            $pkg->sell_price > 0 
+                                                ? $pkg->sell_price 
+                                                : ($pkg->unit_price > 0 
+                                                    ? $pkg->unit_price 
+                                                    : ($pkg->qty > 0 && $pkg->total_price > 0 
+                                                        ? $pkg->total_price / $pkg->qty 
+                                                        : ($pkg->subCategory?->sell_price 
+                                                            ?: ($quotation->package_sell_price 
+                                                                ?: ($quotation->subCategory?->sell_price ?? 0))))));
+                                        $pkgTotalPrice = (float) ($pkg->total_price > 0 ? $pkg->total_price : ($pkgUnitPrice * ($pkg->qty ?: 1)));
+                                        $delivItems = $pkg->deliverables;
+                                        if (empty($delivItems) && $pkg->subCategory && $pkg->subCategory->subCategoryServices) {
+                                            $delivItems = $pkg->subCategory->subCategoryServices->map(fn($s) => [
+                                                'service_name' => $s->service?->name ?? 'Item',
+                                                'qty' => $s->qty
+                                            ])->toArray();
+                                        }
+                                    @endphp
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold text-dark">{{ $pkg->package_name }}</div>
+                                            @if(!empty($delivItems) && is_array($delivItems) && count($delivItems) > 0)
+                                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                                    @foreach($delivItems as $deliv)
+                                                        <span class="badge bg-light text-secondary border fw-normal" style="font-size: 10.5px;">
+                                                            <i class="bi bi-check2"></i> {{ $deliv['service_name'] ?? $deliv['name'] ?? 'Item' }} (x{{ $deliv['qty'] ?? 1 }})
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                        </td>
+                                        <td class="text-secondary small">{{ $pkg->category_name ?? $pkg->subCategory?->category?->name ?? 'Package' }}</td>
+                                        <td class="text-center font-num fw-semibold">{{ $pkg->qty ?: 1 }}</td>
+                                        <td class="text-end font-num">Rs. {{ number_format($pkgUnitPrice, 2) }}</td>
+                                        <td class="text-end font-num fw-bold text-dark">Rs. {{ number_format($pkgTotalPrice, 2) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-bold text-dark mb-0">{{ $quotation->subCategory?->name ?? $quotation->package_name ?? 'Standard Package' }}</h6>
+                            <small class="text-muted">Category: {{ $quotation->subCategory?->category?->name ?? 'General Category' }}</small>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted d-block" style="font-size: 11px;">PACKAGE BASE PRICE</small>
+                            <span class="fw-bold text-primary fs-6">Rs. {{ number_format($pkgBasePrice, 2) }}</span>
+                        </div>
+                    </div>
+
+                    @php
+                        $includedServices = $quotation->subCategory?->subCategoryServices ?? collect();
+                    @endphp
+
+                    <small class="text-muted d-block mb-2 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
+                        Included Package Services ({{ $includedServices->count() }} Items):
+                    </small>
+
+                    @if($includedServices->isNotEmpty())
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach($includedServices as $pkgSvc)
+                                <div class="package-service-pill">
+                                    <i class="bi bi-check2-circle text-success fs-6"></i>
+                                    <span>{{ $pkgSvc->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $pkgSvc->qty }}</strong></span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-muted small py-2">
+                            <i class="bi bi-info-circle me-1"></i> No standard bundled services defined for this package.
+                        </div>
+                    @endif
+                @endif
+            </div>
+        </div>
+
+        <!-- 3. Additional Services Table -->
+        <div class="section-card">
+            <div class="section-card-header">
+                <h6 class="section-card-title">
+                    <i class="bi bi-stars text-primary"></i> Additional Services (Add-ons & Upgrades)
+                </h6>
+                <span class="badge bg-light text-dark border">
+                    {{ $quotation->services->count() }} Extra Items
                 </span>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light text-muted text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
                         <tr>
-                            <th class="ps-4 py-3">Description</th>
+                            <th class="ps-4 py-3">Service Description</th>
                             <th class="py-3 text-center" style="width: 100px;">Qty</th>
                             <th class="py-3 text-end" style="width: 160px;">Unit Price</th>
-                            <th class="py-3 text-end pe-4" style="width: 170px;">Total Price</th>
+                            <th class="py-3 text-end pe-4" style="width: 170px;">Line Total</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($quotation->services as $line)
+                        @forelse($quotation->services as $svc)
                             <tr>
                                 <td class="ps-4 fw-medium text-dark">
-                                    {{ $line->description }}
-                                    @if($line->service)
+                                    {{ $svc->description }}
+                                    @if($svc->service)
                                         <small class="text-muted d-block" style="font-size: 11px;">
-                                            Preset: {{ $line->service->name }}
+                                            Preset: {{ $svc->service->name }}
                                         </small>
                                     @endif
                                 </td>
-                                <td class="text-center">{{ $line->qty }}</td>
-                                <td class="text-end">Rs. {{ number_format($line->unit_price, 2) }}</td>
-                                <td class="text-end pe-4 fw-bold text-dark">Rs. {{ number_format($line->total_price, 2) }}</td>
+                                <td class="text-center">{{ $svc->qty }}</td>
+                                <td class="text-end">Rs. {{ number_format($svc->unit_price, 2) }}</td>
+                                <td class="text-end pe-4 fw-bold text-dark">Rs. {{ number_format($svc->total_price, 2) }}</td>
                             </tr>
                         @empty
                             <tr>
                                 <td colspan="4" class="text-center text-muted py-4 small">
-                                    <i class="bi bi-info-circle me-1"></i> No service lines recorded on this quotation.
+                                    <i class="bi bi-info-circle me-1"></i> No additional upgrade services added to this quotation.
                                 </td>
                             </tr>
                         @endforelse
                     </tbody>
                     @if($quotation->services->isNotEmpty())
-                        @php
-                            $servicesSum = $quotation->services->sum('total_price');
-                        @endphp
                         <tfoot class="bg-light">
                             <tr>
-                                <td colspan="3" class="text-end fw-bold text-secondary">Services Subtotal:</td>
+                                <td colspan="3" class="text-end fw-bold text-secondary">Extra Services Total:</td>
                                 <td class="text-end pe-4 fw-bold text-dark">
-                                    Rs. {{ number_format($servicesSum, 2) }}
+                                    Rs. {{ number_format($svcTotal, 2) }}
                                 </td>
                             </tr>
                         </tfoot>
@@ -261,62 +377,54 @@
             </div>
         </div>
 
-        <!-- 3. Other Charges Table (if applicable) -->
-        @if($quotation->otherCharges && $quotation->otherCharges->isNotEmpty())
-            <div class="section-card">
-                <div class="section-card-header">
-                    <h6 class="section-card-title">
-                        <i class="bi bi-truck text-primary"></i> Other Charges (Transport, Logistics, Surcharges)
-                    </h6>
-                    <span class="badge bg-light text-dark border">
-                        {{ $quotation->otherCharges->count() }} Charges
-                    </span>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light text-muted text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
+        <!-- 4. Other Charges Table (Transport, Hall Rental, Logistics) -->
+        <div class="section-card">
+            <div class="section-card-header">
+                <h6 class="section-card-title">
+                    <i class="bi bi-truck text-primary"></i> Other Charges (Transport, Logistics, Surcharges)
+                </h6>
+                <span class="badge bg-light text-dark border">
+                    {{ $quotation->otherCharges->count() }} Charges
+                </span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light text-muted text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
+                        <tr>
+                            <th class="ps-4 py-3">Charge Description</th>
+                            <th class="py-3 text-end pe-4" style="width: 200px;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($quotation->otherCharges as $charge)
                             <tr>
-                                <th class="ps-4 py-3">Charge Description</th>
-                                <th class="py-3 text-end pe-4" style="width: 200px;">Amount</th>
+                                <td class="ps-4 fw-medium text-dark">{{ $charge->description }}</td>
+                                <td class="text-end pe-4 fw-bold text-dark">Rs. {{ number_format($charge->amount, 2) }}</td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($quotation->otherCharges as $charge)
-                                <tr>
-                                    <td class="ps-4 fw-medium text-dark">{{ $charge->description }}</td>
-                                    <td class="text-end pe-4 fw-bold text-dark">Rs. {{ number_format($charge->amount, 2) }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
+                        @empty
+                            <tr>
+                                <td colspan="2" class="text-center text-muted py-4 small">
+                                    <i class="bi bi-info-circle me-1"></i> No other charges or logistics fees recorded.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                    @if($quotation->otherCharges->isNotEmpty())
                         <tfoot class="bg-light">
                             <tr>
-                                <td class="text-end fw-bold text-secondary">Charges Subtotal:</td>
+                                <td class="text-end fw-bold text-secondary">Other Charges Total:</td>
                                 <td class="text-end pe-4 fw-bold text-dark">
-                                    Rs. {{ number_format($quotation->otherCharges->sum('amount'), 2) }}
+                                    Rs. {{ number_format($chrTotal, 2) }}
                                 </td>
                             </tr>
                         </tfoot>
-                    </table>
-                </div>
+                    @endif
+                </table>
             </div>
-        @endif
-
-        <!-- 4. Remarks / Terms & Conditions -->
-        @if($quotation->remarks)
-            <div class="section-card">
-                <div class="section-card-header">
-                    <h6 class="section-card-title">
-                        <i class="bi bi-card-text text-secondary"></i> Quotation Remarks & Terms
-                    </h6>
-                </div>
-                <div class="card-body p-4 text-secondary" style="font-size: 13.5px; line-height: 1.6;">
-                    {{ $quotation->remarks }}
-                </div>
-            </div>
-        @endif
+        </div>
     </div>
 
-    <!-- Right Column: Customer Info, Financial Summary & Actions -->
+    <!-- Right Column: Customer Info, Financial Breakdown & Summary -->
     <div class="col-12 col-lg-4">
         <!-- 1. Customer Contact Card -->
         <div class="section-card">
@@ -386,61 +494,28 @@
             </div>
             <div class="card-body p-4">
                 <div class="financial-line-item">
-                    <span class="text-muted">Issue Date:</span>
-                    <strong class="text-dark">{{ $quotation->quotation_date?->format('M d, Y') ?? '—' }}</strong>
+                    <span class="text-muted">Package Base Price:</span>
+                    <strong class="text-dark">Rs. {{ number_format($pkgBasePrice, 2) }}</strong>
                 </div>
 
                 <div class="financial-line-item">
-                    <span class="text-muted">Valid Until:</span>
-                    @if($quotation->valid_until)
-                        <strong class="{{ $quotation->valid_until->isPast() ? 'text-danger' : 'text-dark' }}">
-                            {{ $quotation->valid_until->format('M d, Y') }}
-                            @if($quotation->valid_until->isPast())
-                                <small class="text-danger fw-normal">(Expired)</small>
-                            @endif
-                        </strong>
-                    @else
-                        <span class="text-muted">No expiry</span>
-                    @endif
+                    <span class="text-muted">Extra Services Total:</span>
+                    <strong class="text-dark">Rs. {{ number_format($svcTotal, 2) }}</strong>
                 </div>
 
-                @php
-                    $pkgSellPrice = (float)($quotation->package_sell_price ?? $quotation->subCategory?->sell_price ?? 0);
-                    $svcTotal = (float)($quotation->additional_services_total ?? $quotation->services->sum('total_price'));
-                    $chrTotal = (float)($quotation->other_charges_total ?? $quotation->otherCharges->sum('amount'));
-                @endphp
-
-                <div class="pt-2 border-top">
-                    @if($pkgSellPrice > 0)
-                        <div class="financial-line-item">
-                            <span class="text-muted">Package Base Price:</span>
-                            <strong class="text-primary">Rs. {{ number_format($pkgSellPrice, 2) }}</strong>
-                        </div>
-                    @endif
-
-                    @if($svcTotal > 0 || $pkgSellPrice == 0)
-                        <div class="financial-line-item">
-                            <span class="text-muted">Additional Services:</span>
-                            <strong class="text-dark">Rs. {{ number_format($svcTotal, 2) }}</strong>
-                        </div>
-                    @endif
-
-                    @if($chrTotal > 0)
-                        <div class="financial-line-item">
-                            <span class="text-muted">Other Charges:</span>
-                            <strong class="text-dark">Rs. {{ number_format($chrTotal, 2) }}</strong>
-                        </div>
-                    @endif
+                <div class="financial-line-item">
+                    <span class="text-muted">Other Charges Total:</span>
+                    <strong class="text-dark">Rs. {{ number_format($chrTotal, 2) }}</strong>
                 </div>
 
                 <div class="financial-line-item pt-2 border-top">
                     <span class="text-muted">Gross Subtotal:</span>
-                    <strong class="text-dark">Rs. {{ number_format($quotation->sub_total, 2) }}</strong>
+                    <strong class="text-dark">Rs. {{ number_format($finalSubTotal, 2) }}</strong>
                 </div>
 
                 <div class="financial-line-item">
                     <span class="text-muted">Special Discount:</span>
-                    <strong class="text-danger">- Rs. {{ number_format($quotation->discount, 2) }}</strong>
+                    <strong class="text-danger">- Rs. {{ number_format($discountVal, 2) }}</strong>
                 </div>
 
                 <div class="financial-total-banner d-flex justify-content-between align-items-center">
@@ -449,7 +524,7 @@
                         <small class="text-muted">Net estimated value</small>
                     </div>
                     <div class="fs-4 fw-bold text-primary">
-                        Rs. {{ number_format($quotation->total_amount, 2) }}
+                        Rs. {{ number_format($finalTotalAmount, 2) }}
                     </div>
                 </div>
 
@@ -475,14 +550,18 @@
                     </a>
 
                     <a href="{{ route('quotations.edit', $quotation) }}" class="btn btn-outline-primary py-2 fw-semibold">
-                        <i class="bi bi-pencil me-1.5"></i> Edit Quotation
+                        <i class="bi bi-pencil me-1.5"></i> Edit Quotation Details
                     </a>
 
                     <a href="{{ route('quotations.print', $quotation) }}" class="btn btn-outline-dark py-2 fw-semibold" target="_blank">
-                        <i class="bi bi-printer me-1.5"></i> Print Quotation
+                        <i class="bi bi-printer me-1.5"></i> Print Proposal
                     </a>
 
-                    <form method="POST" action="{{ route('quotations.destroy', $quotation) }}" class="mt-2" onsubmit="return confirm('Are you sure you want to delete this quotation?');">
+                    <form method="POST" action="{{ route('quotations.destroy', $quotation) }}" class="mt-2" onsubmit="handleDeleteConfirmation(event, this, {
+                        type: 'Quotation',
+                        title: '{{ $quotation->quotation_no }} - {{ addslashes($quotation->event_name) }}',
+                        hasPayments: false
+                    });">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="btn btn-outline-danger w-100 py-2 fw-semibold">

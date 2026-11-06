@@ -195,12 +195,19 @@
 
                         <!-- Package / Scope -->
                         <td>
-                            @if($quotation->subCategory)
+                            @if($quotation->packages && $quotation->packages->isNotEmpty())
                                 <div class="fw-semibold text-dark" style="font-size: 12.5px;">
-                                    {{ $quotation->subCategory->name }}
+                                    {{ $quotation->packages->pluck('package_name')->join(', ') }}
                                 </div>
                                 <small class="text-muted" style="font-size: 11px;">
-                                    {{ $quotation->subCategory->category?->name ?? 'Package' }}
+                                    {{ $quotation->packages->first()?->category_name ?? 'Package' }}
+                                </small>
+                            @elseif($quotation->subCategory || $quotation->package_name)
+                                <div class="fw-semibold text-dark" style="font-size: 12.5px;">
+                                    {{ $quotation->package_name ?? $quotation->subCategory?->name ?? 'Custom Package' }}
+                                </div>
+                                <small class="text-muted" style="font-size: 11px;">
+                                    {{ $quotation->subCategory?->category?->name ?? 'Package' }}
                                 </small>
                             @else
                                 <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-0.5" style="font-size: 11px;">
@@ -287,7 +294,11 @@
                                 <a href="{{ route('quotations.convert-to-event', $quotation) }}" class="btn-action btn-action-order" style="width: 70px; height: 28px;" title="Convert to Event" target="_blank">
                                     <i class="bi bi-calendar-check"></i> <span>Event</span>
                                 </a>
-                                <form method="POST" action="{{ route('quotations.destroy', $quotation) }}" class="m-0 p-0" style="width: 70px;" onsubmit="return confirm('Are you sure you want to delete this quotation?');">
+                                <form method="POST" action="{{ route('quotations.destroy', $quotation) }}" class="m-0 p-0" style="width: 70px;" onsubmit="handleDeleteConfirmation(event, this, {
+                                    type: 'Quotation',
+                                    title: '{{ $quotation->quotation_no }} - {{ addslashes($quotation->event_name) }}',
+                                    hasPayments: false
+                                });">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn-action btn-action-delete" style="width: 70px; height: 28px;" title="Delete Quotation">

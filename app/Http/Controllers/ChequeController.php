@@ -466,7 +466,12 @@ class ChequeController extends Controller
         }
 
         $tab = strtolower($cheque->type);
+        $chqTitle = "Cheque #{$cheque->cheque_number} - Rs. " . number_format($cheque->amount, 2);
+        $oldValues = $cheque->toArray();
+
         $cheque->delete();
+
+        \App\Services\AuditLogger::log('deleted', 'Cheque', $chqTitle, "Deleted {$cheque->type} cheque #{$cheque->cheque_number}", $cheque->id, $oldValues, null);
 
         return redirect()->route('cheques.index', ['tab' => $tab])
             ->with('success', 'Cheque record removed successfully.');

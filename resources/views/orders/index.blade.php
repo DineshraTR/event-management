@@ -203,9 +203,14 @@
                                     <small class="text-muted font-monospace" style="font-size: 11px;">
                                         {{ $order->event->event_no }}
                                     </small>
-                                    @if($order->package_name || $order->event->subCategory)
+                                    <?php
+                                        $displayPkgName = $order->packages && $order->packages->isNotEmpty()
+                                            ? $order->packages->pluck('package_name')->join(', ')
+                                            : ($order->package_name ?: ($order->event?->packages && $order->event->packages->isNotEmpty() ? $order->event->packages->pluck('package_name')->join(', ') : $order->event?->subCategory?->name));
+                                    ?>
+                                    @if($displayPkgName)
                                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5" style="font-size: 10px;">
-                                            <i class="bi bi-box-seam me-1"></i>{{ $order->package_name ?: $order->event->subCategory->name }}
+                                            <i class="bi bi-box-seam me-1"></i>{{ $displayPkgName }}
                                         </span>
                                     @endif
                                 </div>
@@ -291,13 +296,19 @@
                                 @else
                                     <div style="width: 70px; height: 28px;"></div>
                                 @endif
-                                <form method="POST" action="{{ route('orders.destroy', $order) }}" class="m-0 p-0" style="width: 70px;" onsubmit="return confirm('Are you sure you want to delete this order?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn-action btn-action-delete" style="width: 70px; height: 28px;" title="Delete Order">
-                                        <i class="bi bi-trash3"></i> <span>Delete</span>
-                                    </button>
-                                </form>
+                                @if(!$order->hasPayments())
+                                    <form method="POST" action="{{ route('orders.destroy', $order) }}" class="m-0 p-0" style="width: 70px;" onsubmit="handleDeleteConfirmation(event, this, {
+                                        type: 'Order',
+                                        title: '{{ $order->order_no }}',
+                                        hasPayments: false
+                                    });">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn-action btn-action-delete" style="width: 70px; height: 28px;" title="Delete Order">
+                                            <i class="bi bi-trash3"></i> <span>Delete</span>
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         </td>
                     </tr>

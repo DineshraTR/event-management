@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Quotation;
+use App\Models\QuotationPackage;
 use App\Models\QuotationService;
 use App\Models\QuotationOtherCharge;
 use App\Models\Customer;
@@ -24,7 +25,7 @@ class QuotationController extends Controller
         $fromDate = $request->input('from_date');
         $toDate = $request->input('to_date');
 
-        $query = Quotation::with(['customer', 'subCategory.category']);
+        $query = Quotation::with(['customer', 'packages', 'subCategory.category']);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -109,21 +110,72 @@ class QuotationController extends Controller
             'venue' => 'nullable|string|max:255',
             'discount' => 'nullable|numeric|min:0',
             'remarks' => 'nullable|string',
+            'packages' => 'nullable|array',
         ]);
 
-        DB::transaction(function () use ($request, $validated, &$quotation) {
-            $subCategory = !empty($validated['event_sub_category_id']) 
-                ? EventSubCategory::find($validated['event_sub_category_id']) 
-                : null;
-            $packageSellPrice = $subCategory ? (float) $request->input('package_sell_price', $subCategory->sell_price) : 0;
-            $packageName = $subCategory ? $subCategory->name : null;
-            $packageCostPrice = $subCategory ? (float) $subCategory->cost_price : 0;
+        $packagesData = $request->input('packages', []);
+        $totalPkgSell = 0;
+        $totalPkgCost = 0;
+        $firstSubCatId = $validated['event_sub_category_id'] ?? null;
+        $firstPkgName = null;
 
-            $validated['package_name'] = $packageName;
-            $validated['package_cost_price'] = $packageCostPrice;
-            $validated['package_sell_price'] = $packageSellPrice;
+        if (!empty($packagesData)) {
+            foreach ($packagesData as $p) {
+                $qty = (int)($p['qty'] ?? 1);
+                $sell = (float)($p['sell_price'] ?? 0);
+                $cost = (float)($p['cost_price'] ?? 0);
+                $totalPkgSell += ($sell * $qty);
+                $totalPkgCost += ($cost * $qty);
+                if (!$firstSubCatId && !empty($p['event_sub_category_id'])) {
+                    $firstSubCatId = $p['event_sub_category_id'];
+                }
+                if (!$firstPkgName && !empty($p['package_name'])) {
+                    $firstPkgName = $p['package_name'];
+                }
+            }
+        } elseif (!empty($validated['event_sub_category_id'])) {
+            $subCategory = EventSubCategory::find($validated['event_sub_category_id']);
+            $totalPkgCost = $subCategory ? (float)$subCategory->cost_price : 0;
+            $totalPkgSell = (float)($validated['package_sell_price'] ?? ($subCategory ? $subCategory->sell_price : 0));
+            $firstPkgName = $subCategory?->name;
+        }
 
+        $validated['event_sub_category_id'] = $firstSubCatId;
+        $validated['package_name'] = $firstPkgName;
+        $validated['package_cost_price'] = $totalPkgCost;
+        $validated['package_sell_price'] = $totalPkgSell;
+
+        DB::transaction(function () use ($request, $validated, $packagesData, &$quotation) {
             $quotation = Quotation::create($validated);
+
+            // Save quotation_packages
+            if (!empty($packagesData)) {
+                foreach ($packagesData as $p) {
+                    if (!empty($p['package_name']) || !empty($p['event_sub_category_id'])) {
+                        $qty = (int)($p['qty'] ?? 1);
+                        $sell = (float)($p['sell_price'] ?? 0);
+                        QuotationPackage::create([
+                            'quotation_id' => $quotation->id,
+                            'event_sub_category_id' => !empty($p['event_sub_category_id']) ? $p['event_sub_category_id'] : null,
+                            'package_name' => $p['package_name'] ?? 'Package',
+                            'cost_price' => (float)($p['cost_price'] ?? 0),
+                            'sell_price' => $sell,
+                            'qty' => $qty,
+                            'total_price' => (float)($p['total_price'] ?? ($sell * $qty)),
+                        ]);
+                    }
+                }
+            } elseif ($quotation->subCategory || $quotation->package_sell_price > 0) {
+                QuotationPackage::create([
+                    'quotation_id' => $quotation->id,
+                    'event_sub_category_id' => $quotation->event_sub_category_id,
+                    'package_name' => $quotation->package_name ?? $quotation->subCategory?->name ?? 'Package',
+                    'cost_price' => $quotation->package_cost_price ?? 0,
+                    'sell_price' => $quotation->package_sell_price ?? 0,
+                    'qty' => 1,
+                    'total_price' => $quotation->package_sell_price ?? 0,
+                ]);
+            }
 
             $servicesTotal = 0;
             if ($request->has('services')) {
@@ -157,24 +209,37 @@ class QuotationController extends Controller
                 }
             }
 
-            $subTotal = $packageSellPrice + $servicesTotal + $chargesTotal;
-            $discount = (float) ($validated['discount'] ?? 0);
-            $totalAmount = max(0, $subTotal - $discount);
-
-            $quotation->update([
-                'additional_services_total' => $servicesTotal,
-                'other_charges_total' => $chargesTotal,
-                'sub_total' => $subTotal,
-                'total_amount' => $totalAmount,
-            ]);
+            $quotation->recalculateTotals();
         });
+
+        \App\Services\AuditLogger::log(
+            'created',
+            'Quotation',
+            "Quotation #{$quotation->quotation_no} - {$quotation->event_name}",
+            "Created quotation #{$quotation->quotation_no} for customer " . ($quotation->customer?->name ?? 'N/A') . " (Total: Rs. " . number_format($quotation->total_amount, 2) . ")",
+            $quotation->id,
+            null,
+            $quotation->toArray()
+        );
+
+        // Send customer SMS via Fit SMS (Mask: CEYLON WEDS)
+        \App\Services\FitSmsService::sendQuotationCreatedSms($quotation);
 
         return redirect()->route('quotations.show', $quotation)->with('success', 'Quotation created!');
     }
 
     public function show(Quotation $quotation)
     {
-        $quotation->load(['customer', 'subCategory.category', 'subCategory.subCategoryServices.service', 'services.service', 'otherCharges']);
+        $quotation->recalculateTotals();
+        $quotation->load([
+            'customer',
+            'subCategory.category',
+            'subCategory.subCategoryServices.service',
+            'packages.subCategory.category',
+            'packages.subCategory.subCategoryServices.service',
+            'services.service',
+            'otherCharges'
+        ]);
         return view('quotations.show', compact('quotation'));
     }
 
@@ -183,7 +248,15 @@ class QuotationController extends Controller
         $customers = Customer::where('is_active', true)->orderBy('name')->get();
         $categories = EventCategory::where('is_active', true)->get();
         $services = Service::where('is_active', true)->get();
-        $quotation->load(['customer', 'subCategory.category', 'subCategory.subCategoryServices.service', 'services.service', 'otherCharges']);
+        $quotation->load([
+            'customer',
+            'subCategory.category',
+            'subCategory.subCategoryServices.service',
+            'packages.subCategory.category',
+            'packages.subCategory.subCategoryServices.service',
+            'services.service',
+            'otherCharges'
+        ]);
         return view('quotations.edit', compact('quotation', 'customers', 'categories', 'services'));
     }
 
@@ -201,19 +274,75 @@ class QuotationController extends Controller
             'discount' => 'nullable|numeric|min:0',
             'status' => 'required|in:draft,sent,accepted,rejected',
             'remarks' => 'nullable|string',
+            'packages' => 'nullable|array',
         ]);
 
-        DB::transaction(function () use ($request, $validated, $quotation) {
-            $subCategory = !empty($validated['event_sub_category_id']) 
-                ? EventSubCategory::find($validated['event_sub_category_id']) 
-                : null;
-            $packageSellPrice = $subCategory ? (float) $request->input('package_sell_price', $subCategory->sell_price) : 0;
-            $packageName = $subCategory ? $subCategory->name : null;
-            $packageCostPrice = $subCategory ? (float) $subCategory->cost_price : 0;
+        $packagesData = $request->input('packages', []);
+        $totalPkgSell = 0;
+        $totalPkgCost = 0;
+        $firstSubCatId = $validated['event_sub_category_id'] ?? null;
+        $firstPkgName = null;
 
-            $validated['package_name'] = $packageName;
-            $validated['package_cost_price'] = $packageCostPrice;
-            $validated['package_sell_price'] = $packageSellPrice;
+        if (!empty($packagesData)) {
+            foreach ($packagesData as $p) {
+                $qty = (int)($p['qty'] ?? 1);
+                $sell = (float)($p['sell_price'] ?? 0);
+                $cost = (float)($p['cost_price'] ?? 0);
+                $totalPkgSell += ($sell * $qty);
+                $totalPkgCost += ($cost * $qty);
+                if (!$firstSubCatId && !empty($p['event_sub_category_id'])) {
+                    $firstSubCatId = $p['event_sub_category_id'];
+                }
+                if (!$firstPkgName && !empty($p['package_name'])) {
+                    $firstPkgName = $p['package_name'];
+                }
+            }
+        } elseif (!empty($validated['event_sub_category_id'])) {
+            $subCategory = EventSubCategory::find($validated['event_sub_category_id']);
+            $totalPkgCost = $subCategory ? (float)$subCategory->cost_price : 0;
+            $totalPkgSell = (float)($validated['package_sell_price'] ?? ($subCategory ? $subCategory->sell_price : 0));
+            $firstPkgName = $subCategory?->name;
+        }
+
+        $validated['event_sub_category_id'] = $firstSubCatId;
+        $validated['package_name'] = $firstPkgName;
+        $validated['package_cost_price'] = $totalPkgCost;
+        $validated['package_sell_price'] = $totalPkgSell;
+
+        $oldValues = $quotation->toArray();
+
+        DB::transaction(function () use ($request, $validated, $packagesData, $quotation) {
+            $quotation->update($validated);
+
+            // Rebuild quotation_packages
+            $quotation->packages()->delete();
+            if (!empty($packagesData)) {
+                foreach ($packagesData as $p) {
+                    if (!empty($p['package_name']) || !empty($p['event_sub_category_id'])) {
+                        $qty = (int)($p['qty'] ?? 1);
+                        $sell = (float)($p['sell_price'] ?? 0);
+                        QuotationPackage::create([
+                            'quotation_id' => $quotation->id,
+                            'event_sub_category_id' => !empty($p['event_sub_category_id']) ? $p['event_sub_category_id'] : null,
+                            'package_name' => $p['package_name'] ?? 'Package',
+                            'cost_price' => (float)($p['cost_price'] ?? 0),
+                            'sell_price' => $sell,
+                            'qty' => $qty,
+                            'total_price' => (float)($p['total_price'] ?? ($sell * $qty)),
+                        ]);
+                    }
+                }
+            } elseif ($quotation->subCategory || $quotation->package_sell_price > 0) {
+                QuotationPackage::create([
+                    'quotation_id' => $quotation->id,
+                    'event_sub_category_id' => $quotation->event_sub_category_id,
+                    'package_name' => $quotation->package_name ?? $quotation->subCategory?->name ?? 'Package',
+                    'cost_price' => $quotation->package_cost_price ?? 0,
+                    'sell_price' => $quotation->package_sell_price ?? 0,
+                    'qty' => 1,
+                    'total_price' => $quotation->package_sell_price ?? 0,
+                ]);
+            }
 
             $quotation->services()->delete();
             $quotation->otherCharges()->delete();
@@ -250,36 +379,61 @@ class QuotationController extends Controller
                 }
             }
 
-            $subTotal = $packageSellPrice + $servicesTotal + $chargesTotal;
-            $discount = (float) ($validated['discount'] ?? 0);
-            $totalAmount = max(0, $subTotal - $discount);
-
-            $validated['additional_services_total'] = $servicesTotal;
-            $validated['other_charges_total'] = $chargesTotal;
-            $validated['sub_total'] = $subTotal;
-            $validated['total_amount'] = $totalAmount;
-
-            $quotation->update($validated);
+            $quotation->recalculateTotals();
         });
+
+        \App\Services\AuditLogger::log(
+            'updated',
+            'Quotation',
+            "Quotation #{$quotation->quotation_no} - {$quotation->event_name}",
+            "Updated quotation #{$quotation->quotation_no}",
+            $quotation->id,
+            $oldValues,
+            $quotation->fresh()->toArray()
+        );
 
         return redirect()->route('quotations.show', $quotation)->with('success', 'Quotation updated!');
     }
 
     public function destroy(Quotation $quotation)
     {
+        $quoTitle = "Quotation #{$quotation->quotation_no} - {$quotation->event_name}";
+        $oldValues = $quotation->toArray();
+
         $quotation->delete();
-        return redirect()->route('quotations.index')->with('success', 'Quotation deleted.');
+
+        \App\Services\AuditLogger::log('deleted', 'Quotation', $quoTitle, "Deleted quotation {$quoTitle}", $quotation->id, $oldValues, null);
+
+        return redirect()->route('quotations.index')->with('success', 'Quotation deleted successfully.');
     }
 
     public function print(Quotation $quotation)
     {
-        $quotation->load(['customer', 'subCategory.category', 'subCategory.subCategoryServices.service', 'services.service', 'otherCharges']);
+        $quotation->recalculateTotals();
+        $quotation->load([
+            'customer',
+            'subCategory.category',
+            'subCategory.subCategoryServices.service',
+            'packages.subCategory.category',
+            'packages.subCategory.subCategoryServices.service',
+            'services.service',
+            'otherCharges'
+        ]);
         return view('quotations.print', compact('quotation'));
     }
 
     public function convertToEvent(Quotation $quotation)
     {
         $quotation->update(['status' => 'accepted']);
+
+        \App\Services\AuditLogger::log(
+            'converted',
+            'Quotation',
+            "Quotation #{$quotation->quotation_no}",
+            "Converted quotation #{$quotation->quotation_no} to Event",
+            $quotation->id
+        );
+
         return redirect()->route('events.create', ['quotation_id' => $quotation->id])
             ->with('info', 'Quotation loaded. Complete event registration.');
     }

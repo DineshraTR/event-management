@@ -44,7 +44,8 @@ class BankController extends Controller
 
     public function create()
     {
-        return view('banks.create');
+        $hasPrimaryBank = Bank::where('is_primary', true)->exists();
+        return view('banks.create', compact('hasPrimaryBank'));
     }
 
     public function store(Request $request)
@@ -64,6 +65,13 @@ class BankController extends Controller
         $validated['opening_balance'] = $openingBalance;
         $validated['current_balance'] = $openingBalance;
         $validated['is_active'] = $request->has('is_active');
+
+        $hasPrimary = Bank::where('is_primary', true)->exists();
+        if (!$hasPrimary && $request->has('is_primary')) {
+            $validated['is_primary'] = true;
+        } else {
+            $validated['is_primary'] = false;
+        }
 
         Bank::create($validated);
 
@@ -104,7 +112,8 @@ class BankController extends Controller
 
     public function edit(Bank $bank)
     {
-        return view('banks.edit', compact('bank'));
+        $hasOtherPrimary = Bank::where('is_primary', true)->where('id', '!=', $bank->id)->exists();
+        return view('banks.edit', compact('bank', 'hasOtherPrimary'));
     }
 
     public function update(Request $request, Bank $bank)
@@ -120,9 +129,27 @@ class BankController extends Controller
         ]);
 
         $validated['is_active'] = $request->has('is_active');
+
+        $hasOtherPrimary = Bank::where('is_primary', true)->where('id', '!=', $bank->id)->exists();
+        if (!$hasOtherPrimary) {
+            $isPrimary = $request->has('is_primary');
+            $validated['is_primary'] = $isPrimary;
+            if ($isPrimary) {
+                Bank::where('id', '!=', $bank->id)->update(['is_primary' => false]);
+            }
+        }
+
         $bank->update($validated);
 
         return redirect()->route('banks.index')->with('success', 'Bank account updated successfully!');
+    }
+
+    public function setPrimary(Bank $bank)
+    {
+        Bank::where('id', '!=', $bank->id)->update(['is_primary' => false]);
+        $bank->update(['is_primary' => true, 'is_active' => true]);
+
+        return redirect()->back()->with('success', "{$bank->bank_name} ({$bank->account_number}) is now designated as the Primary Bank for invoices & quotations.");
     }
 
     public function destroy(Bank $bank)

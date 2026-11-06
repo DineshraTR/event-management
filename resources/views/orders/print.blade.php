@@ -340,11 +340,11 @@
                     <i class="bi bi-stars"></i>
                 </div> -->
                 <div>
-                    <div class="company-brand-title">Event Management System</div>
+                    <div class="company-brand-title">CEYLON WEDDING COMPANY</div>
                     <div class="company-meta-text">
-                        <span>Event Planning, Design & Luxury Catering Solutions</span><br>
-                        <span>Hotline: +94 11 234 5678 / +94 77 123 4567</span><br>
-                        <span>Email: info@eventmanagement.lk</span>
+                        <span>Photography & Videography Solutions</span><br>
+                        <span>Hotline: 0777524937 | Email: ceylonwedding.co@gmail.com</span><br>
+                        <span>www.ceylonweddingcompany.com</span>
                     </div>
                 </div>
             </div>
@@ -405,6 +405,13 @@
             </div>
 
             <!-- Event & Booking Info -->
+            @php
+                $displayPackages = $order->packages && $order->packages->isNotEmpty()
+                    ? $order->packages
+                    : ($order->event?->packages && $order->event->packages->isNotEmpty()
+                        ? $order->event->packages
+                        : collect());
+            @endphp
             <div class="col-md-6">
                 <div class="info-card-box">
                     <div class="info-card-heading">
@@ -425,7 +432,14 @@
                                     <span class="text-dark">{{ $order->event->venue }}</span>
                                 </div>
                             @endif
-                            @if($order->event->subCategory)
+                            @if($displayPackages->isNotEmpty())
+                                <div>
+                                    Package{{ $displayPackages->count() > 1 ? 's' : '' }}: 
+                                    <span class="text-dark fw-semibold">
+                                        {{ $displayPackages->pluck('package_name')->join(', ') }}
+                                    </span>
+                                </div>
+                            @elseif($order->event->subCategory)
                                 <div>
                                     Package: 
                                     <span class="text-dark fw-semibold">{{ $order->event->subCategory->name }}</span>
@@ -442,22 +456,51 @@
             </div>
         </div>
 
-        <!-- 3. Package Deliverables Summary Box (if event package has included services) -->
-        @if($order->event?->subCategory?->subCategoryServices && $order->event->subCategory->subCategoryServices->isNotEmpty())
+        <!-- 3. Package Deliverables Summary Box (Multi-Package Supported) -->
+        @php
+            $allDeliverables = collect();
+            if ($displayPackages->isNotEmpty()) {
+                foreach ($displayPackages as $dp) {
+                    $delivs = $dp->deliverables ?? ($dp->subCategory?->subCategoryServices->map(fn($s) => ['service_name' => $s->service?->name ?? 'Service', 'qty' => $s->qty])->toArray() ?? []);
+                    if (!empty($delivs)) {
+                        foreach ($delivs as $d) {
+                            $allDeliverables->push([
+                                'package_name' => $dp->package_name,
+                                'name' => $d['service_name'] ?? $d['name'] ?? 'Item',
+                                'qty' => $d['qty'] ?? 1
+                            ]);
+                        }
+                    }
+                }
+            } elseif ($order->event?->subCategory?->subCategoryServices && $order->event->subCategory->subCategoryServices->isNotEmpty()) {
+                foreach ($order->event->subCategory->subCategoryServices as $ps) {
+                    $allDeliverables->push([
+                        'package_name' => $order->event->subCategory->name,
+                        'name' => $ps->service?->name ?? 'Service',
+                        'qty' => $ps->qty
+                    ]);
+                }
+            }
+        @endphp
+
+        @if($allDeliverables->isNotEmpty())
             <div class="p-2.5 bg-light rounded-3 border mb-3">
                 <div class="d-flex align-items-center justify-content-between mb-1 pb-1 border-bottom" style="font-size: 11px;">
                     <span class="fw-bold text-dark">
-                        Package Included Deliverables ({{ $order->event->subCategory->name }}):
+                        Package Included Deliverables:
                     </span>
                     <span class="badge bg-secondary-subtle text-secondary" style="font-size: 10px;">
                         Standard Package Items
                     </span>
                 </div>
                 <div class="d-flex flex-wrap gap-1.5 pt-0.5">
-                    @foreach($order->event->subCategory->subCategoryServices as $ps)
+                    @foreach($allDeliverables as $deliv)
                         <div class="pkg-tag-pill">
                             <i class="bi bi-check-circle-fill text-success" style="font-size: 9.5px;"></i>
-                            <span>{{ $ps->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $ps->qty }}</strong></span>
+                            <span>{{ $deliv['name'] }} &bull; Qty: <strong>{{ $deliv['qty'] }}</strong></span>
+                            @if($displayPackages->count() > 1)
+                                <span class="text-muted" style="font-size: 9.5px;">({{ $deliv['package_name'] }})</span>
+                            @endif
                         </div>
                     @endforeach
                 </div>
@@ -615,22 +658,22 @@
         </div>
 
         @php
-            $primaryBank = $primaryBank ?? \App\Models\Bank::where('is_active', true)->first();
+            $primaryBank = \App\Models\Bank::getPrimaryBank();
         @endphp
         <!-- 6. Bank Transfer Account Instructions (Footer) -->
         <div class="p-2.5 bg-light border rounded-3 mb-3 page-break-avoid" style="font-size: 11px; line-height: 1.45;">
             <div class="fw-bold text-dark mb-1">
-                Payment & Bank Settlement Details:
+                <i class="bi bi-bank me-1 text-primary"></i> Payment & Bank Settlement Details:
             </div>
             <div class="text-secondary">
                 @if(!empty($primaryBank))
                     Bank: <strong class="text-dark">{{ $primaryBank->bank_name }}</strong> &bull;
                     Account Name: <strong class="text-dark">{{ $primaryBank->account_name }}</strong> &bull;
                     Account No: <strong class="text-dark font-num">{{ $primaryBank->account_number }}</strong>
-                    @if(!empty($primaryBank->branch_name)) &bull; Branch: {{ $primaryBank->branch_name }} @endif
+                    @if(!empty($primaryBank->branch)) &bull; Branch: {{ $primaryBank->branch }} @endif
+                    @if(!empty($primaryBank->swift_code)) &bull; SWIFT: {{ $primaryBank->swift_code }} @endif
                     <br>
                 @endif
-                Please make all cheques or bank deposits payable to <strong>Event Management System</strong>. 
                 For direct bank transfers, please mention the Invoice Number <strong class="text-dark font-num">#{{ $order->order_no }}</strong> as payment reference and send the bank receipt via WhatsApp or Email.
             </div>
         </div>

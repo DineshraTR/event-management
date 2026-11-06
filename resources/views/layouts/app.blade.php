@@ -1923,7 +1923,7 @@
 
             <!-- 4. Reports (Dropdown) -->
             @php
-                $isReportsActive = request()->routeIs('reports.*');
+                $isReportsActive = request()->routeIs('reports.*') || request()->routeIs('sms-logs.*');
             @endphp
             <div class="sidebar-dropdown">
                 <a href="#menuReports" 
@@ -1970,13 +1970,17 @@
                             <i class="bi bi-clock-history"></i>
                             <span>Order History</span>
                         </a>
+                        <a href="{{ route('sms-logs.index') }}" class="sidebar-link {{ request()->routeIs('sms-logs.*') ? 'active' : '' }}">
+                            <i class="bi bi-chat-dots-fill"></i>
+                            <span>SMS Logs</span>
+                        </a>
                     </div>
                 </div>
             </div>
 
             <!-- 5. Settings (Dropdown) -->
             @php
-                $isSettingsActive = request()->routeIs('banks.*') || request()->routeIs('event-categories.*') || request()->routeIs('event-sub-categories.*') || request()->routeIs('expense-categories.*') || request()->routeIs('services.*') || request()->routeIs('users.*');
+                $isSettingsActive = request()->routeIs('banks.*') || request()->routeIs('event-categories.*') || request()->routeIs('event-sub-categories.*') || request()->routeIs('expense-categories.*') || request()->routeIs('services.*') || request()->routeIs('users.*') || request()->routeIs('audit-logs.*');
             @endphp
             <div class="sidebar-dropdown">
                 <a href="#menuSettings" 
@@ -2011,6 +2015,10 @@
                             <i class="bi bi-tags-fill"></i>
                             <span>Expense Categories</span>
                         </a>
+                        <!-- <a href="{{ route('audit-logs.index') }}" class="sidebar-link {{ request()->routeIs('audit-logs.*') ? 'active' : '' }}">
+                            <i class="bi bi-shield-check"></i>
+                            <span>Audit Logs</span>
+                        </a> -->
                         @if((Auth::user()->role ?? '') === 'Admin')
                         <a href="{{ route('users.index') }}" class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
                             <i class="bi bi-person-gear"></i>
@@ -2116,6 +2124,38 @@
         @endif
 
         @yield('content')
+    </div>
+
+    <!-- Universal Delete Confirmation & Payment Warning Modal -->
+    <div class="modal fade" id="universalDeleteModal" tabindex="-1" aria-hidden="true" style="z-index: 1065;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+            <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="modal-body p-4 text-center">
+                    <div id="universalDeleteIconBox" class="mx-auto d-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 60px; height: 60px; background: #fee2e2; color: #dc2626; font-size: 26px;">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2" id="universalDeleteTitle">Confirm Deletion</h5>
+                    <div class="text-secondary small mb-3" id="universalDeleteMessage">Are you sure you want to delete this record? This action cannot be undone.</div>
+                    
+                    <!-- Payment Alert Box (Shown only if payments exist) -->
+                    <div id="universalDeletePaymentAlert" class="alert alert-danger border-0 d-none text-start p-3 mb-0 rounded-3">
+                        <div class="d-flex align-items-start gap-2.5">
+                            <i class="bi bi-shield-slash-fill fs-4 text-danger flex-shrink-0 mt-0.5"></i>
+                            <div>
+                                <strong class="d-block text-danger mb-1" style="font-size: 13px;">Deletion Blocked — Payments Exist!</strong>
+                                <span class="small text-danger-emphasis d-block" id="universalDeletePaymentText" style="line-height: 1.45;"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top p-3 px-4 d-flex justify-content-end gap-2" id="universalDeleteFooter">
+                    <button type="button" class="btn btn-outline-secondary px-3" data-bs-dismiss="modal" id="universalDeleteCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-danger px-4 fw-semibold" id="universalDeleteConfirmBtn">
+                        <i class="bi bi-trash3 me-1"></i> Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- jQuery (Needed for Select2 and rich select interaction) -->
@@ -2291,6 +2331,76 @@
 
             resetIdleTimer();
         })();
+
+        // Universal Delete & Payment Block Handler
+        window.handleDeleteConfirmation = function (event, formEl, config) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            const modalEl = document.getElementById('universalDeleteModal');
+            if (!modalEl || typeof bootstrap === 'undefined') {
+                if (confirm('Are you sure you want to delete this record?')) formEl.submit();
+                return;
+            }
+
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            const titleEl = document.getElementById('universalDeleteTitle');
+            const msgEl = document.getElementById('universalDeleteMessage');
+            const iconBox = document.getElementById('universalDeleteIconBox');
+            const paymentAlert = document.getElementById('universalDeletePaymentAlert');
+            const paymentText = document.getElementById('universalDeletePaymentText');
+            const confirmBtn = document.getElementById('universalDeleteConfirmBtn');
+            const cancelBtn = document.getElementById('universalDeleteCancelBtn');
+
+            const type = config.type || 'Record';
+            const title = config.title || '';
+            const hasPayments = !!config.hasPayments;
+            const paymentAmount = config.paymentAmount || 0;
+
+            if (hasPayments) {
+                iconBox.style.background = '#fef2f2';
+                iconBox.style.color = '#b91c1c';
+                iconBox.innerHTML = '<i class="bi bi-shield-slash-fill"></i>';
+                titleEl.innerText = `Cannot Delete ${type}`;
+                msgEl.innerText = `This ${type.toLowerCase()} has settled payment records. Deleting it is strictly prevented to protect accounting integrity.`;
+                paymentAlert.classList.remove('d-none');
+                paymentText.innerHTML = `Payments totaling <strong>Rs. ${parseFloat(paymentAmount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong> have already been paid towards this record. You cannot delete it while payments are present.`;
+                confirmBtn.classList.add('d-none');
+                cancelBtn.innerText = 'Understood & Close';
+                cancelBtn.className = 'btn btn-secondary px-4 fw-semibold';
+            } else {
+                iconBox.style.background = '#fee2e2';
+                iconBox.style.color = '#dc2626';
+                iconBox.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>';
+                titleEl.innerText = `Delete ${type}?`;
+                let confirmMessage = config.customMessage;
+                if (!confirmMessage) {
+                    confirmMessage = `Are you sure you want to permanently delete <strong>${title || ('this ' + type.toLowerCase())}</strong>?`;
+                    if (config.extraNote) {
+                        confirmMessage += `<div class="mt-2 p-2 bg-danger-subtle text-danger rounded border border-danger-subtle small fw-semibold"><i class="bi bi-exclamation-circle-fill me-1"></i>${config.extraNote}</div>`;
+                    } else {
+                        confirmMessage += ` This action cannot be undone.`;
+                    }
+                }
+                msgEl.innerHTML = confirmMessage;
+                paymentAlert.classList.add('d-none');
+                confirmBtn.classList.remove('d-none');
+                confirmBtn.innerText = 'Yes, Delete';
+                confirmBtn.className = 'btn btn-danger px-4 fw-semibold';
+                cancelBtn.innerText = 'No, Cancel';
+                cancelBtn.className = 'btn btn-outline-secondary px-3';
+
+                confirmBtn.onclick = function () {
+                    confirmBtn.disabled = true;
+                    confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Deleting...';
+                    formEl.submit();
+                };
+            }
+
+            modal.show();
+        };
     </script>
 
     @stack('scripts')

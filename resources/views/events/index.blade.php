@@ -269,10 +269,14 @@
                         <!-- Package / Category -->
                         <td>
                             <div class="fw-semibold text-dark" style="font-size: 12.5px;">
-                                {{ $event->subCategory->name ?? 'Custom Package' }}
+                                @if($event->packages && $event->packages->isNotEmpty())
+                                    {{ $event->packages->pluck('package_name')->join(', ') }}
+                                @else
+                                    {{ $event->subCategory->name ?? $event->package_name ?? 'Custom Package' }}
+                                @endif
                             </div>
                             <span class="badge bg-light text-dark border px-2 py-0.5" style="font-size: 10.5px; font-weight: 600;">
-                                <i class="bi bi-folder2 me-1 text-secondary"></i>{{ $event->subCategory->category->name ?? 'General' }}
+                                <i class="bi bi-folder2 me-1 text-secondary"></i>{{ $event->packages?->first()?->category_name ?? $event->subCategory?->category?->name ?? 'General' }}
                             </span>
                         </td>
 
@@ -358,13 +362,20 @@
                                         <i class="bi bi-receipt"></i> <span>Order</span>
                                     </a>
                                 @endif
-                                <form method="POST" action="{{ route('events.destroy', $event) }}" class="m-0 p-0" style="width: 70px;" onsubmit="return confirm('Are you sure you want to delete this event?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn-action btn-action-delete" style="width: 70px; height: 28px;" title="Delete Event">
-                                        <i class="bi bi-trash3"></i> <span>Delete</span>
-                                    </button>
-                                </form>
+                                @if(!$event->hasPayments())
+                                    <form method="POST" action="{{ route('events.destroy', $event) }}" class="m-0 p-0" style="width: 70px;" onsubmit="handleDeleteConfirmation(event, this, {
+                                        type: 'Event',
+                                        title: '{{ $event->event_no }} - {{ addslashes($event->event_name) }}',
+                                        hasPayments: false,
+                                        extraNote: '{{ $event->order ? 'Associated Order #' . $event->order->order_no . ' and all its items will also be permanently deleted.' : '' }}'
+                                    });">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn-action btn-action-delete" style="width: 70px; height: 28px;" title="Delete Event">
+                                            <i class="bi bi-trash3"></i> <span>Delete</span>
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         </td>
                     </tr>
