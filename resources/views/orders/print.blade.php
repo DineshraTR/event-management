@@ -470,6 +470,11 @@
                 </thead>
                 <tbody>
                     @php $itemCount = 1; @endphp
+                    @php
+                        $additionalServices = $order->services->filter(
+                            fn($line) => !$line->is_package_item && !str_contains($line->description, '(Base Package)')
+                        );
+                    @endphp
 
                     <!-- 1. Packages Line Items (with deliverables right inside description) -->
                     @if($displayPackages->isNotEmpty())
@@ -578,7 +583,7 @@
                     @endif
 
                     <!-- 2. Extra Services Line Items -->
-                    @forelse($order->services as $line)
+                    @forelse($additionalServices as $line)
                         <tr>
                             <td class="text-center text-muted font-num">{{ $itemCount++ }}</td>
                             <td class="fw-semibold text-dark">
