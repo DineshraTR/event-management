@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\DashboardController;
@@ -20,6 +21,35 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\BankController;
 use App\Http\Controllers\ChequeController;
 use App\Http\Controllers\ExpenseCategoryController;
+
+// Cache Clearing Route (useful for shared hosting without terminal access)
+Route::get('/clear-cache', function () {
+    $outputs = [];
+
+    Artisan::call('config:clear');
+    $outputs[] = trim(Artisan::output()) ?: 'Config cache cleared.';
+
+    Artisan::call('route:clear');
+    $outputs[] = trim(Artisan::output()) ?: 'Route cache cleared.';
+
+    Artisan::call('view:clear');
+    $outputs[] = trim(Artisan::output()) ?: 'View cache cleared.';
+
+    Artisan::call('event:clear');
+    $outputs[] = trim(Artisan::output()) ?: 'Event cache cleared.';
+
+    try {
+        Artisan::call('cache:clear');
+        $outputs[] = trim(Artisan::output()) ?: 'Application cache cleared.';
+    } catch (\Throwable $e) {
+        $outputs[] = 'Application cache skipped (Database not reachable: ' . $e->getMessage() . ')';
+    }
+
+    return '<h2>Clear Cache Status</h2><pre>' . implode("\n", $outputs) . '</pre>';
+})->withoutMiddleware([
+    \App\Http\Middleware\SecurityHeaders::class,
+    \App\Http\Middleware\CheckSessionSecurity::class,
+]);
 
 // Guest Auth Routes
 Route::middleware('guest')->group(function () {
