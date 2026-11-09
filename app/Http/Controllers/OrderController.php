@@ -199,6 +199,7 @@ class OrderController extends Controller
                                 'event_id' => $event->id,
                                 'event_sub_category_id' => $subCatId,
                                 'package_name' => $pName,
+                                'description' => $p['description'] ?? null,
                                 'cost_price' => $cost,
                                 'sell_price' => $sell,
                                 'qty' => $qty,
@@ -212,6 +213,7 @@ class OrderController extends Controller
                             'event_package_id' => $epkgId,
                             'event_sub_category_id' => $subCatId,
                             'package_name' => $pName,
+                            'description' => $p['description'] ?? null,
                             'cost_price' => $cost,
                             'sell_price' => $sell,
                             'qty' => $qty,
@@ -230,11 +232,16 @@ class OrderController extends Controller
                     }
                 }
             } elseif ($totalPkgSell > 0 || $firstPkgName) {
+                $subCatDesc = null;
+                if ($firstSubCatId) {
+                    $subCatDesc = EventSubCategory::find($firstSubCatId)?->description;
+                }
                 OrderPackage::create([
                     'order_id' => $order->id,
                     'event_package_id' => null,
                     'event_sub_category_id' => $firstSubCatId,
                     'package_name' => $firstPkgName ?: 'Event Package',
+                    'description' => $subCatDesc,
                     'cost_price' => $totalPkgCost,
                     'sell_price' => $totalPkgSell,
                     'qty' => 1,
@@ -252,7 +259,11 @@ class OrderController extends Controller
                 ]);
             }
 
-            // 5. Save Services & sync new services to Event
+            // 5. Save Services & sync to Event
+            if ($event) {
+                $event->additionalServices()->delete();
+            }
+
             if ($request->has('services')) {
                 foreach ($request->services as $svc) {
                     if (!empty($svc['description'])) {
@@ -263,39 +274,32 @@ class OrderController extends Controller
                         OrderService::create([
                             'order_id' => $order->id,
                             'service_id' => $svc['service_id'] ?? null,
+                            'is_package_item' => false,
                             'description' => $svc['description'],
                             'qty' => $qty,
                             'unit_price' => $uPrice,
                             'total_price' => $tPrice,
                         ]);
 
-                        // Sync new service to event if not already present
                         if ($event) {
-                            $existsOnEvent = $event->additionalServices()
-                                ->where(function($q) use ($svc) {
-                                    if (!empty($svc['service_id'])) {
-                                        $q->where('service_id', $svc['service_id']);
-                                    } else {
-                                        $q->where('description', $svc['description']);
-                                    }
-                                })->exists();
-
-                            if (!$existsOnEvent) {
-                                EventService::create([
-                                    'event_id' => $event->id,
-                                    'service_id' => $svc['service_id'] ?? null,
-                                    'description' => $svc['description'],
-                                    'qty' => $qty,
-                                    'unit_price' => $uPrice,
-                                    'total_price' => $tPrice,
-                                ]);
-                            }
+                            EventService::create([
+                                'event_id' => $event->id,
+                                'service_id' => $svc['service_id'] ?? null,
+                                'description' => $svc['description'],
+                                'qty' => $qty,
+                                'unit_price' => $uPrice,
+                                'total_price' => $tPrice,
+                            ]);
                         }
                     }
                 }
             }
 
-            // 6. Save Other Charges & sync new charges to Event
+            // 6. Save Other Charges & sync to Event
+            if ($event) {
+                $event->otherCharges()->delete();
+            }
+
             if ($request->has('other_charges')) {
                 foreach ($request->other_charges as $charge) {
                     if (!empty($charge['description'])) {
@@ -306,16 +310,12 @@ class OrderController extends Controller
                             'amount' => $amt,
                         ]);
 
-                        // Sync new charge to event if not already present
                         if ($event) {
-                            $existsOnEvent = $event->otherCharges()->where('description', $charge['description'])->exists();
-                            if (!$existsOnEvent) {
-                                EventOtherCharge::create([
-                                    'event_id' => $event->id,
-                                    'description' => $charge['description'],
-                                    'amount' => $amt,
-                                ]);
-                            }
+                            EventOtherCharge::create([
+                                'event_id' => $event->id,
+                                'description' => $charge['description'],
+                                'amount' => $amt,
+                            ]);
                         }
                     }
                 }
@@ -353,6 +353,8 @@ class OrderController extends Controller
             'event.subCategory.subCategoryServices.service',
             'event.packages.subCategory.category',
             'event.packages.subCategory.subCategoryServices.service',
+            'event.additionalServices.service',
+            'event.otherCharges',
             'services.service',
             'otherCharges',
             'payments'
@@ -466,6 +468,7 @@ class OrderController extends Controller
                                 'event_id' => $event->id,
                                 'event_sub_category_id' => $subCatId,
                                 'package_name' => $pName,
+                                'description' => $p['description'] ?? null,
                                 'cost_price' => $cost,
                                 'sell_price' => $sell,
                                 'qty' => $qty,
@@ -479,6 +482,7 @@ class OrderController extends Controller
                             'event_package_id' => $epkgId,
                             'event_sub_category_id' => $subCatId,
                             'package_name' => $pName,
+                            'description' => $p['description'] ?? null,
                             'cost_price' => $cost,
                             'sell_price' => $sell,
                             'qty' => $qty,
@@ -497,11 +501,16 @@ class OrderController extends Controller
                     }
                 }
             } elseif ($totalPkgSell > 0 || $firstPkgName) {
+                $subCatDesc = null;
+                if ($firstSubCatId) {
+                    $subCatDesc = EventSubCategory::find($firstSubCatId)?->description;
+                }
                 OrderPackage::create([
                     'order_id' => $order->id,
                     'event_package_id' => null,
                     'event_sub_category_id' => $firstSubCatId,
                     'package_name' => $firstPkgName ?: 'Event Package',
+                    'description' => $subCatDesc,
                     'cost_price' => $totalPkgCost,
                     'sell_price' => $totalPkgSell,
                     'qty' => 1,
@@ -519,7 +528,11 @@ class OrderController extends Controller
                 ]);
             }
 
-            // 4. Rebuild services & sync new to Event
+            // 4. Rebuild services & sync to Event
+            if ($event) {
+                $event->additionalServices()->delete();
+            }
+
             if ($request->has('services')) {
                 foreach ($request->services as $svc) {
                     if (!empty($svc['description'])) {
@@ -530,6 +543,7 @@ class OrderController extends Controller
                         OrderService::create([
                             'order_id' => $order->id,
                             'service_id' => $svc['service_id'] ?? null,
+                            'is_package_item' => false,
                             'description' => $svc['description'],
                             'qty' => $qty,
                             'unit_price' => $uPrice,
@@ -537,32 +551,25 @@ class OrderController extends Controller
                         ]);
 
                         if ($event) {
-                            $existsOnEvent = $event->additionalServices()
-                                ->where(function($q) use ($svc) {
-                                    if (!empty($svc['service_id'])) {
-                                        $q->where('service_id', $svc['service_id']);
-                                    } else {
-                                        $q->where('description', $svc['description']);
-                                    }
-                                })->exists();
-
-                            if (!$existsOnEvent) {
-                                EventService::create([
-                                    'event_id' => $event->id,
-                                    'service_id' => $svc['service_id'] ?? null,
-                                    'description' => $svc['description'],
-                                    'qty' => $qty,
-                                    'unit_price' => $uPrice,
-                                    'total_price' => $tPrice,
-                                ]);
-                            }
+                            EventService::create([
+                                'event_id' => $event->id,
+                                'service_id' => $svc['service_id'] ?? null,
+                                'description' => $svc['description'],
+                                'qty' => $qty,
+                                'unit_price' => $uPrice,
+                                'total_price' => $tPrice,
+                            ]);
                         }
                     }
                 }
             }
 
-            // 5. Rebuild other charges & sync new to Event
+            // 5. Rebuild other charges & sync to Event
             $order->otherCharges()->delete();
+            if ($event) {
+                $event->otherCharges()->delete();
+            }
+
             if ($request->has('other_charges')) {
                 foreach ($request->other_charges as $charge) {
                     if (!empty($charge['description'])) {
@@ -574,14 +581,11 @@ class OrderController extends Controller
                         ]);
 
                         if ($event) {
-                            $existsOnEvent = $event->otherCharges()->where('description', $charge['description'])->exists();
-                            if (!$existsOnEvent) {
-                                EventOtherCharge::create([
-                                    'event_id' => $event->id,
-                                    'description' => $charge['description'],
-                                    'amount' => $amt,
-                                ]);
-                            }
+                            EventOtherCharge::create([
+                                'event_id' => $event->id,
+                                'description' => $charge['description'],
+                                'amount' => $amt,
+                            ]);
                         }
                     }
                 }
@@ -657,15 +661,11 @@ class OrderController extends Controller
                     'event_sub_category_id' => $pkg->event_sub_category_id,
                     'category_name' => $subCat?->category?->name ?? 'General Category',
                     'package_name' => $pkg->package_name,
+                    'description' => $pkg->description ?? $subCat?->description ?? '',
                     'cost_price' => (float) $pkg->cost_price,
                     'sell_price' => (float) $pkg->sell_price,
                     'qty' => (int) $pkg->qty,
                     'total_price' => (float) $pkg->total_price,
-                    'services' => $subCat?->subCategoryServices->map(fn($s) => [
-                        'service_id' => $s->service_id,
-                        'name' => $s->service?->name ?? 'Service',
-                        'qty' => $s->qty,
-                    ])->toArray() ?? [],
                 ];
             }
         } elseif ($event->event_sub_category_id || $event->package_sell_price > 0) {
@@ -676,15 +676,11 @@ class OrderController extends Controller
                 'event_sub_category_id' => $event->event_sub_category_id,
                 'category_name' => $subCat?->category?->name ?? 'General Category',
                 'package_name' => $event->package_name ?? $subCat?->name ?? 'Base Package',
+                'description' => $subCat?->description ?? '',
                 'cost_price' => (float) $event->package_cost_price,
                 'sell_price' => (float) $event->package_sell_price,
                 'qty' => 1,
                 'total_price' => (float) $event->package_sell_price,
-                'services' => $subCat?->subCategoryServices->map(fn($s) => [
-                    'service_id' => $s->service_id,
-                    'name' => $s->service?->name ?? 'Service',
-                    'qty' => $s->qty,
-                ])->toArray() ?? [],
             ];
         }
 

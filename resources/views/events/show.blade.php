@@ -241,13 +241,12 @@
                                     <tr>
                                         <td>
                                             <div class="fw-bold text-dark">{{ $pkg->package_name }}</div>
-                                            @if(!empty($delivItems) && is_array($delivItems) && count($delivItems) > 0)
-                                                <div class="d-flex flex-wrap gap-1 mt-1">
-                                                    @foreach($delivItems as $deliv)
-                                                        <span class="badge bg-light text-secondary border fw-normal" style="font-size: 10.5px;">
-                                                            <i class="bi bi-check2"></i> {{ $deliv['service_name'] ?? $deliv['name'] ?? 'Item' }} (x{{ $deliv['qty'] ?? 1 }})
-                                                        </span>
-                                                    @endforeach
+                                            @php
+                                                $pkgDesc = $pkg->description ?? $pkg->subCategory?->description ?? '';
+                                            @endphp
+                                            @if(!empty($pkgDesc))
+                                                <div class="text-muted small mt-1" style="white-space: pre-line; font-size: 11.5px; line-height: 1.45;">
+                                                    <i class="bi bi-text-paragraph text-primary me-1"></i>{{ $pkgDesc }}
                                                 </div>
                                             @endif
                                         </td>
@@ -273,25 +272,15 @@
                     </div>
 
                     @php
-                        $includedServices = $event->subCategory?->subCategoryServices ?? collect();
+                        $baseDesc = $event->subCategory?->description;
                     @endphp
 
-                    <small class="text-muted d-block mb-2 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
-                        Included Package Services ({{ $includedServices->count() }} Items):
-                    </small>
-
-                    @if($includedServices->isNotEmpty())
-                        <div class="d-flex flex-wrap gap-2">
-                            @foreach($includedServices as $pkgSvc)
-                                <div class="package-service-pill">
-                                    <i class="bi bi-check2-circle text-success fs-6"></i>
-                                    <span>{{ $pkgSvc->service?->name ?? 'Service' }} &bull; Qty: <strong>{{ $pkgSvc->qty }}</strong></span>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <div class="text-muted small py-2">
-                            <i class="bi bi-info-circle me-1"></i> No standard bundled services defined for this package.
+                    @if(!empty($baseDesc))
+                        <div class="mt-2">
+                            <small class="text-muted d-block mb-1 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
+                                Package Description:
+                            </small>
+                            <div class="text-secondary small p-3 bg-light rounded-3" style="white-space: pre-line; line-height: 1.5;">{{ $baseDesc }}</div>
                         </div>
                     @endif
                 @endif

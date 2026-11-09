@@ -12,14 +12,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('username')->nullable()->unique()->after('name');
-        });
+        if (!Schema::hasColumn('users', 'username')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->string('username')->nullable()->unique()->after('name');
+            });
 
-        // Set default usernames for existing users based on email prefix
-        DB::table('users')->where('email', 'admin@eventpro.com')->update(['username' => 'admin']);
-        DB::table('users')->where('email', 'manager@eventpro.com')->update(['username' => 'manager']);
-        DB::table('users')->whereNull('username')->update(['username' => DB::raw("SUBSTRING_INDEX(email, '@', 1)")]);
+            // Set default usernames for existing users based on email prefix
+            DB::table('users')->where('email', 'admin@eventpro.com')->update(['username' => 'admin']);
+            DB::table('users')->where('email', 'manager@eventpro.com')->update(['username' => 'manager']);
+            DB::table('users')->whereNull('username')->update(['username' => DB::raw("SUBSTRING_INDEX(email, '@', 1)")]);
+        }
     }
 
     /**

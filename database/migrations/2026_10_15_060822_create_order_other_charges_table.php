@@ -8,13 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('order_other_charges', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('order_id')->constrained('orders')->onDelete('cascade');
-            $table->string('description');
-            $table->decimal('amount', 12, 2)->default(0);
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('order_other_charges')) {
+            Schema::create('order_other_charges', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('order_id')->constrained('orders')->onDelete('cascade');
+                $table->string('description');
+                $table->decimal('amount', 12, 2)->default(0);
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void

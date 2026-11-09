@@ -361,11 +361,15 @@
                                 </button>
                             </div>
                         </div>
-                        <!-- Live preview of services for currently selected package in picker -->
-                        <div id="pkgPickerServicesPreview" class="d-none mt-2 pt-2 border-top small text-muted">
-                            <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <strong class="text-dark"><i class="bi bi-check2-circle text-success"></i> Includes:</strong>
-                                <span id="pkgPickerServicesList" class="d-inline-flex flex-wrap gap-1"></span>
+                        <!-- Live preview of description & bundled services for currently selected package in picker -->
+                        <div id="pkgPickerServicesPreview" class="d-none mt-2 pt-2 border-top">
+                            <div id="pkgPickerServicesRow" class="mb-1 d-none">
+                                <small class="text-muted fw-semibold me-2"><i class="bi bi-box-seam text-primary me-1"></i>Included Services:</small>
+                                <span id="pkgPickerServicesPills" class="d-inline-flex flex-wrap gap-1"></span>
+                            </div>
+                            <div id="pkgPickerDescRow" class="d-none">
+                                <small class="text-muted fw-semibold me-2"><i class="bi bi-card-text text-primary me-1"></i>Package Description:</small>
+                                <div id="pkgPickerDescText" class="text-secondary small mt-1" style="white-space: pre-line;"></div>
                             </div>
                         </div>
                     </div>
@@ -375,7 +379,7 @@
                         <table class="table modern-table align-middle mb-0" id="quotationPackagesTable">
                             <thead>
                                 <tr>
-                                    <th>Package / Sub-Category</th>
+                                    <th>Package Details & Description</th>
                                     <th style="width: 160px;" class="text-end">Unit Price (Rs.)</th>
                                     <th style="width: 100px;" class="text-center">Qty</th>
                                     <th style="width: 170px;" class="text-end pe-4">Line Total (Rs.)</th>
@@ -615,9 +619,16 @@
 @section('scripts')
 <script>
     const availableServices = @json($services);
+    const prefilledPackages = @json(old('packages', []));
     let qServiceIndex = 0;
     let qChargeIndex = 0;
     let selectedPackageData = null;
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return String(text).replace(/[&<>"']/g, m => map[m]);
+    }
 
     // Quick Add Customer via AJAX
     function saveQuickCustomer() {
@@ -705,12 +716,25 @@
         const subSelect = document.getElementById('pkgSubCategoryId');
         subSelect.innerHTML = '<option value="">-- Loading Packages... --</option>';
         document.getElementById('pkgPriceInput').value = '0.00';
-        document.getElementById('pkgPickerServicesPreview').classList.add('d-none');
-        document.getElementById('pkgPickerServicesList').innerHTML = '';
+        const previewBox = document.getElementById('pkgPickerServicesPreview');
+        if (previewBox) previewBox.classList.add('d-none');
+        const pillsSpan = document.getElementById('pkgPickerServicesPills');
+        if (pillsSpan) pillsSpan.innerHTML = '';
+        const descText = document.getElementById('pkgPickerDescText');
+        if (descText) descText.innerText = '';
+        const svcRow = document.getElementById('pkgPickerServicesRow');
+        if (svcRow) svcRow.classList.add('d-none');
+        const descRow = document.getElementById('pkgPickerDescRow');
+        if (descRow) descRow.classList.add('d-none');
         currentPickerPkgData = null;
 
         if (!categoryId) {
             subSelect.innerHTML = '<option value="">-- Select Category First --</option>';
+            subSelect.value = '';
+            subSelect.selectedIndex = 0;
+            if (typeof jQuery !== 'undefined' && jQuery(subSelect).hasClass('select2-hidden-accessible')) {
+                jQuery(subSelect).trigger('change.select2');
+            }
             return;
         }
 
@@ -725,18 +749,35 @@
                     opt.text = `${sub.name} (Sell: Rs. ${parseFloat(sub.sell_price).toLocaleString()})`;
                     subSelect.appendChild(opt);
                 });
+                subSelect.value = '';
+                subSelect.selectedIndex = 0;
+                if (typeof jQuery !== 'undefined' && jQuery(subSelect).hasClass('select2-hidden-accessible')) {
+                    jQuery(subSelect).trigger('change.select2');
+                }
             })
             .catch(() => {
                 subSelect.innerHTML = '<option value="">Error loading packages</option>';
+                if (typeof jQuery !== 'undefined' && jQuery(subSelect).hasClass('select2-hidden-accessible')) {
+                    jQuery(subSelect).trigger('change.select2');
+                }
             });
     }
 
     // Sub-Category Change -> Load Package Details & Included Deliverables
     function onPkgSubCategoryChange(subCategoryId) {
+        const previewBox = document.getElementById('pkgPickerServicesPreview');
+        const pillsSpan = document.getElementById('pkgPickerServicesPills');
+        const descText = document.getElementById('pkgPickerDescText');
+        const svcRow = document.getElementById('pkgPickerServicesRow');
+        const descRow = document.getElementById('pkgPickerDescRow');
+
         if (!subCategoryId) {
             document.getElementById('pkgPriceInput').value = '0.00';
-            document.getElementById('pkgPickerServicesPreview').classList.add('d-none');
-            document.getElementById('pkgPickerServicesList').innerHTML = '';
+            if (previewBox) previewBox.classList.add('d-none');
+            if (pillsSpan) pillsSpan.innerHTML = '';
+            if (descText) descText.innerText = '';
+            if (svcRow) svcRow.classList.add('d-none');
+            if (descRow) descRow.classList.add('d-none');
             currentPickerPkgData = null;
             return;
         }
@@ -759,24 +800,40 @@
                     document.getElementById('pkgPriceInput').value = parseFloat(data.sell_price).toFixed(2);
                 }
 
-                const previewBox = document.getElementById('pkgPickerServicesPreview');
-                const listEl = document.getElementById('pkgPickerServicesList');
-                listEl.innerHTML = '';
+                let hasServices = false;
+                let hasDesc = false;
 
-                if (data.services && data.services.length > 0) {
-                    previewBox.classList.remove('d-none');
-                    data.services.forEach(s => {
-                        const badge = document.createElement('span');
-                        badge.className = 'badge bg-white border text-dark fw-normal';
-                        badge.textContent = `${s.service_name} (x${s.qty})`;
-                        listEl.appendChild(badge);
-                    });
+                if (pillsSpan && Array.isArray(data.services) && data.services.length > 0) {
+                    hasServices = true;
+                    pillsSpan.innerHTML = data.services.map(svc => 
+                        `<span class="package-service-pill"><i class="bi bi-check2-circle text-success"></i> ${escapeHtml(svc.service_name || '')} &bull; Qty: <strong>${svc.qty || 1}</strong></span>`
+                    ).join(' ');
+                    if (svcRow) svcRow.classList.remove('d-none');
                 } else {
-                    previewBox.classList.add('d-none');
+                    if (pillsSpan) pillsSpan.innerHTML = '';
+                    if (svcRow) svcRow.classList.add('d-none');
+                }
+
+                if (descText && data.description && data.description.trim() !== '') {
+                    hasDesc = true;
+                    descText.innerText = data.description;
+                    if (descRow) descRow.classList.remove('d-none');
+                } else {
+                    if (descText) descText.innerText = '';
+                    if (descRow) descRow.classList.add('d-none');
+                }
+
+                if (previewBox) {
+                    if (hasServices || hasDesc) {
+                        previewBox.classList.remove('d-none');
+                    } else {
+                        previewBox.classList.add('d-none');
+                    }
                 }
             })
             .catch(err => {
                 console.error('Error fetching package details:', err);
+                currentPickerPkgData = null;
             });
     }
 
@@ -791,27 +848,48 @@
         }
 
         const packageName = subSelect.options[subSelect.selectedIndex].text.replace(/\s*\(Sell:.*?\)\s*/i, '').trim();
-        const categoryName = catSelect.options[catSelect.selectedIndex].text.trim();
+        const categoryName = catSelect.options[catSelect.selectedIndex]?.text?.trim() || '';
         const unitPrice = parseFloat(document.getElementById('pkgPriceInput').value) || 0;
         const qty = parseInt(document.getElementById('pkgQtyInput').value) || 1;
-        const deliverables = (currentPickerPkgData && currentPickerPkgData.services) ? currentPickerPkgData.services : [];
+        const description = (currentPickerPkgData && currentPickerPkgData.description) ? currentPickerPkgData.description : '';
 
         addQuotationPackageRow({
             event_sub_category_id: subId,
             package_name: packageName,
             category_name: categoryName,
+            description: description,
             unit_price: unitPrice,
-            qty: qty,
-            deliverables: deliverables
+            qty: qty
         });
 
-        // Reset picker selection
+        // Reset package picker form completely
+        catSelect.value = '';
+        catSelect.selectedIndex = 0;
+        if (typeof jQuery !== 'undefined' && jQuery(catSelect).hasClass('select2-hidden-accessible')) {
+            jQuery(catSelect).val('').trigger('change.select2');
+        }
+
+        subSelect.innerHTML = '<option value="">-- Select Category First --</option>';
         subSelect.value = '';
+        subSelect.selectedIndex = 0;
+        if (typeof jQuery !== 'undefined' && jQuery(subSelect).hasClass('select2-hidden-accessible')) {
+            jQuery(subSelect).val('').trigger('change.select2');
+        }
+
         document.getElementById('pkgPriceInput').value = '0.00';
         document.getElementById('pkgQtyInput').value = '1';
-        document.getElementById('pkgPickerServicesPreview').classList.add('d-none');
-        document.getElementById('pkgPickerServicesList').innerHTML = '';
         currentPickerPkgData = null;
+
+        const previewBox = document.getElementById('pkgPickerServicesPreview');
+        if (previewBox) previewBox.classList.add('d-none');
+        const pillsSpan = document.getElementById('pkgPickerServicesPills');
+        if (pillsSpan) pillsSpan.innerHTML = '';
+        const descEl = document.getElementById('pkgPickerDescText');
+        if (descEl) descEl.innerText = '';
+        const svcRow = document.getElementById('pkgPickerServicesRow');
+        if (svcRow) svcRow.classList.add('d-none');
+        const descRow = document.getElementById('pkgPickerDescRow');
+        if (descRow) descRow.classList.add('d-none');
     }
 
     function addQuotationPackageRow(pkg) {
@@ -821,16 +899,11 @@
 
         const idx = qPkgIndex++;
         const lineTotal = (parseFloat(pkg.unit_price) || 0) * (parseInt(pkg.qty) || 1);
+        const pkgDesc = pkg.description || '';
 
-        let deliverableBadgesHtml = '';
-        if (pkg.deliverables && pkg.deliverables.length > 0) {
-            deliverableBadgesHtml = '<div class="d-flex flex-wrap gap-1 mt-1">';
-            pkg.deliverables.forEach(d => {
-                const sName = d.service_name || d.name || 'Item';
-                const sQty = d.qty || 1;
-                deliverableBadgesHtml += `<span class="badge bg-light text-secondary border fw-normal" style="font-size: 10.5px;"><i class="bi bi-check2"></i> ${sName} (x${sQty})</span>`;
-            });
-            deliverableBadgesHtml += '</div>';
+        let descHtml = '';
+        if (pkgDesc && pkgDesc.trim() !== '') {
+            descHtml = `<div class="text-muted small mt-1" style="white-space: pre-line; font-size: 11.5px; line-height: 1.45;"><i class="bi bi-text-paragraph text-primary me-1"></i>${escapeHtml(pkgDesc)}</div>`;
         }
 
         const tr = document.createElement('tr');
@@ -838,12 +911,13 @@
         tr.className = 'qpkg-row';
         tr.innerHTML = `
             <td>
-                <div class="fw-bold text-dark">${pkg.package_name}</div>
-                ${pkg.category_name ? `<div class="small text-muted"><i class="bi bi-tag me-1"></i>${pkg.category_name}</div>` : ''}
-                ${deliverableBadgesHtml}
+                <div class="fw-bold text-dark">${escapeHtml(pkg.package_name)}</div>
+                ${pkg.category_name ? `<div class="small text-muted"><i class="bi bi-tag me-1"></i>${escapeHtml(pkg.category_name)}</div>` : ''}
+                ${descHtml}
                 <input type="hidden" name="packages[${idx}][event_sub_category_id]" value="${pkg.event_sub_category_id || ''}">
-                <input type="hidden" name="packages[${idx}][package_name]" value="${pkg.package_name}">
-                <input type="hidden" name="packages[${idx}][category_name]" value="${pkg.category_name || ''}">
+                <input type="hidden" name="packages[${idx}][package_name]" value="${escapeHtml(pkg.package_name)}">
+                <input type="hidden" name="packages[${idx}][category_name]" value="${escapeHtml(pkg.category_name || '')}">
+                <input type="hidden" name="packages[${idx}][description]" value="${escapeHtml(pkgDesc)}">
             </td>
             <td>
                 <input type="number" step="0.01" min="0" name="packages[${idx}][unit_price]" id="qpkg_unit_price_${idx}"
@@ -1079,6 +1153,9 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+        if (typeof prefilledPackages !== 'undefined' && Array.isArray(prefilledPackages) && prefilledPackages.length > 0) {
+            prefilledPackages.forEach(pkg => addQuotationPackageRow(pkg));
+        }
         calculateQuotationTotals();
     });
 </script>

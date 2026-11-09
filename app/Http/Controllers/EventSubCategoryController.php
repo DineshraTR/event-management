@@ -151,6 +151,7 @@ class EventSubCategoryController extends Controller
         return response()->json([
             'id' => $sub->id,
             'name' => $sub->name,
+            'description' => $sub->description,
             'cost_price' => $sub->cost_price,
             'sell_price' => $sub->sell_price,
             'services' => $sub->subCategoryServices->map(fn($s) => [
@@ -168,7 +169,7 @@ class EventSubCategoryController extends Controller
     {
         $subs = EventSubCategory::where('event_category_id', $categoryId)
             ->where('is_active', true)
-            ->get(['id', 'name', 'sell_price', 'cost_price']);
+            ->get(['id', 'name', 'description', 'sell_price', 'cost_price']);
         return response()->json($subs);
     }
 

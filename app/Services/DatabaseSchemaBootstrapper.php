@@ -23,6 +23,7 @@ class DatabaseSchemaBootstrapper
         self::$executed = true;
 
         try {
+            self::autoMigratePending();
             self::ensureMultiPackageTables();
             self::ensureLegacyColumns();
             self::ensureAuditLogsTable();
@@ -30,6 +31,30 @@ class DatabaseSchemaBootstrapper
             self::backfillLegacyPackages();
         } catch (\Throwable $e) {
             Log::error('DatabaseSchemaBootstrapper failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Automatically runs any pending migrations when migration files are added or updated.
+     */
+    protected static function autoMigratePending(): void
+    {
+        try {
+            $migrationsPath = database_path('migrations');
+            if (!is_dir($migrationsPath)) {
+                return;
+            }
+
+            $cacheKey = 'sys_db_last_migration_check';
+            $lastChecked = \Illuminate\Support\Facades\Cache::get($cacheKey);
+            $lastModified = filemtime($migrationsPath);
+
+            if (!$lastChecked || $lastChecked < $lastModified) {
+                \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+                \Illuminate\Support\Facades\Cache::forever($cacheKey, time());
+            }
+        } catch (\Throwable $e) {
+            Log::warning('DatabaseSchemaBootstrapper autoMigratePending: ' . $e->getMessage());
         }
     }
 
@@ -45,6 +70,7 @@ class DatabaseSchemaBootstrapper
                 $table->unsignedBigInteger('event_id');
                 $table->unsignedBigInteger('event_sub_category_id')->nullable();
                 $table->string('package_name');
+                $table->text('description')->nullable();
                 $table->decimal('cost_price', 12, 2)->default(0);
                 $table->decimal('sell_price', 12, 2)->default(0);
                 $table->integer('qty')->default(1);
@@ -64,6 +90,7 @@ class DatabaseSchemaBootstrapper
                 $table->unsignedBigInteger('event_package_id')->nullable();
                 $table->unsignedBigInteger('event_sub_category_id')->nullable();
                 $table->string('package_name');
+                $table->text('description')->nullable();
                 $table->decimal('cost_price', 12, 2)->default(0);
                 $table->decimal('sell_price', 12, 2)->default(0);
                 $table->integer('qty')->default(1);
@@ -83,6 +110,7 @@ class DatabaseSchemaBootstrapper
                 $table->unsignedBigInteger('quotation_id');
                 $table->unsignedBigInteger('event_sub_category_id')->nullable();
                 $table->string('package_name');
+                $table->text('description')->nullable();
                 $table->decimal('cost_price', 12, 2)->default(0);
                 $table->decimal('sell_price', 12, 2)->default(0);
                 $table->integer('qty')->default(1);
@@ -208,6 +236,9 @@ class DatabaseSchemaBootstrapper
                 if (!Schema::hasColumn('event_packages', 'category_name')) {
                     $table->string('category_name')->nullable()->after('package_name');
                 }
+                if (!Schema::hasColumn('event_packages', 'description')) {
+                    $table->text('description')->nullable()->after('package_name');
+                }
                 if (!Schema::hasColumn('event_packages', 'unit_price')) {
                     $table->decimal('unit_price', 12, 2)->default(0)->after('sell_price');
                 }
@@ -223,6 +254,9 @@ class DatabaseSchemaBootstrapper
                 if (!Schema::hasColumn('order_packages', 'category_name')) {
                     $table->string('category_name')->nullable()->after('package_name');
                 }
+                if (!Schema::hasColumn('order_packages', 'description')) {
+                    $table->text('description')->nullable()->after('package_name');
+                }
                 if (!Schema::hasColumn('order_packages', 'unit_price')) {
                     $table->decimal('unit_price', 12, 2)->default(0)->after('sell_price');
                 }
@@ -237,6 +271,9 @@ class DatabaseSchemaBootstrapper
             Schema::table('quotation_packages', function (Blueprint $table) {
                 if (!Schema::hasColumn('quotation_packages', 'category_name')) {
                     $table->string('category_name')->nullable()->after('package_name');
+                }
+                if (!Schema::hasColumn('quotation_packages', 'description')) {
+                    $table->text('description')->nullable()->after('package_name');
                 }
                 if (!Schema::hasColumn('quotation_packages', 'unit_price')) {
                     $table->decimal('unit_price', 12, 2)->default(0)->after('sell_price');

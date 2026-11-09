@@ -8,16 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('event_services', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('event_id')->constrained('events')->onDelete('cascade');
-            $table->foreignId('service_id')->nullable()->constrained('services')->onDelete('set null');
-            $table->string('description');
-            $table->integer('qty')->default(1);
-            $table->decimal('unit_price', 12, 2)->default(0);
-            $table->decimal('total_price', 12, 2)->default(0);
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('event_services')) {
+            Schema::create('event_services', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('event_id')->constrained('events')->onDelete('cascade');
+                $table->foreignId('service_id')->nullable()->constrained('services')->onDelete('set null');
+                $table->string('description');
+                $table->integer('qty')->default(1);
+                $table->decimal('unit_price', 12, 2)->default(0);
+                $table->decimal('total_price', 12, 2)->default(0);
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void

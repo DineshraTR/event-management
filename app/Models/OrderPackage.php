@@ -14,6 +14,7 @@ class OrderPackage extends Model
         'event_package_id',
         'event_sub_category_id',
         'package_name',
+        'description',
         'cost_price',
         'sell_price',
         'qty',
@@ -40,6 +41,11 @@ class OrderPackage extends Model
     public function subCategory()
     {
         return $this->belongsTo(EventSubCategory::class, 'event_sub_category_id');
+    }
+
+    public function getDescriptionAttribute($value): string
+    {
+        return !empty($value) ? $value : ($this->eventPackage?->description ?: ($this->subCategory?->description ?? ''));
     }
 
     public function getUnitPriceAttribute(): float

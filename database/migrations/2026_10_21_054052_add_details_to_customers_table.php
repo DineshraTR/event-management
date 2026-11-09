@@ -12,11 +12,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('customers', function (Blueprint $table) {
-            $table->string('company_name')->nullable()->after('name');
-            $table->string('city')->nullable()->after('address');
-            $table->string('postal_code')->nullable()->after('city');
-            $table->date('dob')->nullable()->after('nic');
-            $table->string('lead_source')->nullable()->after('notes');
+            if (!Schema::hasColumn('customers', 'company_name')) {
+                $table->string('company_name')->nullable()->after('name');
+            }
+            if (!Schema::hasColumn('customers', 'city')) {
+                $table->string('city')->nullable()->after('address');
+            }
+            if (!Schema::hasColumn('customers', 'postal_code')) {
+                $table->string('postal_code')->nullable()->after('city');
+            }
+            if (!Schema::hasColumn('customers', 'dob')) {
+                $table->date('dob')->nullable()->after('nic');
+            }
+            if (!Schema::hasColumn('customers', 'lead_source')) {
+                $table->string('lead_source')->nullable()->after('notes');
+            }
         });
     }
 

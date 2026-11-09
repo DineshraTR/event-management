@@ -12,9 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->string('role')->default('Staff')->after('email'); // Admin, Manager, Staff, Accountant
-            $table->string('phone')->nullable()->after('role');
-            $table->boolean('is_active')->default(true)->after('phone');
+            if (!Schema::hasColumn('users', 'role')) {
+                $table->string('role')->default('Staff')->after('email'); // Admin, Manager, Staff, Accountant
+            }
+            if (!Schema::hasColumn('users', 'phone')) {
+                $table->string('phone')->nullable()->after('role');
+            }
+            if (!Schema::hasColumn('users', 'is_active')) {
+                $table->boolean('is_active')->default(true)->after('phone');
+            }
         });
     }
 

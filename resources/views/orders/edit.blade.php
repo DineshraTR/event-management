@@ -302,14 +302,11 @@
                             'event_sub_category_id' => $p->event_sub_category_id,
                             'category_name' => $p->subCategory?->category?->name ?? 'General',
                             'package_name' => $p->package_name,
+                            'description' => $p->description ?? $p->subCategory?->description ?? '',
                             'cost_price' => (float)$p->cost_price,
                             'sell_price' => (float)$p->sell_price,
                             'qty' => $p->qty ?? 1,
                             'total_price' => (float)$p->total_price,
-                            'services' => $p->subCategory?->subCategoryServices->map(fn($s) => [
-                                'name' => $s->service?->name ?? 'Service',
-                                'qty' => $s->qty
-                            ])->toArray() ?? []
                         ])->toArray();
                     } elseif ($order->event?->packages && $order->event->packages->isNotEmpty()) {
                         $initOrderPackages = $order->event->packages->map(fn($p) => [
@@ -317,14 +314,11 @@
                             'event_sub_category_id' => $p->event_sub_category_id,
                             'category_name' => $p->subCategory?->category?->name ?? 'General',
                             'package_name' => $p->package_name,
+                            'description' => $p->description ?? $p->subCategory?->description ?? '',
                             'cost_price' => (float)$p->cost_price,
                             'sell_price' => (float)$p->sell_price,
                             'qty' => $p->qty ?? 1,
                             'total_price' => (float)$p->total_price,
-                            'services' => $p->subCategory?->subCategoryServices->map(fn($s) => [
-                                'name' => $s->service?->name ?? 'Service',
-                                'qty' => $s->qty
-                            ])->toArray() ?? []
                         ])->toArray();
                     } elseif ($order->package_sell_price > 0 || $order->event?->subCategory) {
                         $initOrderPackages = [[
@@ -332,14 +326,11 @@
                             'event_sub_category_id' => $order->event_sub_category_id,
                             'category_name' => $order->event?->subCategory?->category?->name ?? 'General',
                             'package_name' => $order->package_name ?? $order->event?->subCategory?->name ?? 'Event Package',
+                            'description' => $order->event?->subCategory?->description ?? '',
                             'cost_price' => (float)($order->package_cost_price ?? 0),
                             'sell_price' => (float)($order->package_sell_price ?? 0),
                             'qty' => 1,
                             'total_price' => (float)($order->package_sell_price ?? 0),
-                            'services' => $order->event?->subCategory?->subCategoryServices->map(fn($s) => [
-                                'name' => $s->service?->name ?? 'Service',
-                                'qty' => $s->qty
-                            ])->toArray() ?? []
                         ]];
                     }
                 @endphp
@@ -394,9 +385,16 @@
                                 </button>
                             </div>
                         </div>
+                        <!-- Live preview of description & bundled services for currently selected package in picker -->
                         <div id="orderPickerPkgServicesPreview" class="d-none mt-2 pt-2 border-top">
-                            <small class="text-muted fw-semibold me-2"><i class="bi bi-check-circle-fill text-success me-1"></i>Included in selected package:</small>
-                            <span id="orderPickerPkgServicesPills" class="d-inline-flex flex-wrap gap-1"></span>
+                            <div id="orderPickerPkgServicesRow" class="mb-1 d-none">
+                                <small class="text-muted fw-semibold me-2"><i class="bi bi-box-seam text-primary me-1"></i>Included Services:</small>
+                                <span id="orderPickerPkgServicesPills" class="d-inline-flex flex-wrap gap-1"></span>
+                            </div>
+                            <div id="orderPickerPkgDescRow" class="d-none">
+                                <small class="text-muted fw-semibold me-2"><i class="bi bi-card-text text-primary me-1"></i>Package Description:</small>
+                                <div id="orderPickerPkgDescText" class="text-secondary small mt-1" style="white-space: pre-line;"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -411,7 +409,7 @@
                             <thead>
                                 <tr>
                                     <th style="width: 40px;" class="text-center">#</th>
-                                    <th>Package Details & Included Deliverables</th>
+                                    <th>Package Details & Description</th>
                                     <th style="width: 150px;" class="text-end">Unit Price (Rs.)</th>
                                     <th style="width: 90px;" class="text-center">Qty</th>
                                     <th style="width: 160px;" class="text-end pe-4">Line Total (Rs.)</th>
@@ -707,12 +705,25 @@
     function onOrderPkgCategoryChange(categoryId) {
         const subSelect = document.getElementById('orderPkgSubCategoryId');
         subSelect.innerHTML = '<option value="">-- Loading Packages... --</option>';
-        document.getElementById('orderPickerPkgServicesPreview').classList.add('d-none');
-        document.getElementById('orderPickerPkgServicesPills').innerHTML = '';
+        const previewBox = document.getElementById('orderPickerPkgServicesPreview');
+        if (previewBox) previewBox.classList.add('d-none');
+        const pillsSpan = document.getElementById('orderPickerPkgServicesPills');
+        if (pillsSpan) pillsSpan.innerHTML = '';
+        const descText = document.getElementById('orderPickerPkgDescText');
+        if (descText) descText.innerText = '';
+        const svcRow = document.getElementById('orderPickerPkgServicesRow');
+        if (svcRow) svcRow.classList.add('d-none');
+        const descRow = document.getElementById('orderPickerPkgDescRow');
+        if (descRow) descRow.classList.add('d-none');
         currentSelectedOrderPkgDetails = null;
 
         if (!categoryId) {
             subSelect.innerHTML = '<option value="">-- Select Category First --</option>';
+            subSelect.value = '';
+            subSelect.selectedIndex = 0;
+            if (typeof jQuery !== 'undefined' && jQuery(subSelect).hasClass('select2-hidden-accessible')) {
+                jQuery(subSelect).trigger('change.select2');
+            }
             document.getElementById('orderPkgPriceInput').value = '0.00';
             return;
         }
@@ -729,18 +740,35 @@
                     opt.text = `${sub.name} (Sell: Rs. ${parseFloat(sub.sell_price).toLocaleString()})`;
                     subSelect.appendChild(opt);
                 });
+                subSelect.value = '';
+                subSelect.selectedIndex = 0;
+                if (typeof jQuery !== 'undefined' && jQuery(subSelect).hasClass('select2-hidden-accessible')) {
+                    jQuery(subSelect).trigger('change.select2');
+                }
             })
             .catch(() => {
                 subSelect.innerHTML = '<option value="">Error loading packages</option>';
+                if (typeof jQuery !== 'undefined' && jQuery(subSelect).hasClass('select2-hidden-accessible')) {
+                    jQuery(subSelect).trigger('change.select2');
+                }
             });
     }
 
     // Sub-Category Change in Order Package Picker
     function onOrderPkgSubCategoryChange(subCategoryId) {
+        const previewBox = document.getElementById('orderPickerPkgServicesPreview');
+        const pillsSpan = document.getElementById('orderPickerPkgServicesPills');
+        const descText = document.getElementById('orderPickerPkgDescText');
+        const svcRow = document.getElementById('orderPickerPkgServicesRow');
+        const descRow = document.getElementById('orderPickerPkgDescRow');
+
         if (!subCategoryId) {
             document.getElementById('orderPkgPriceInput').value = '0.00';
-            document.getElementById('orderPickerPkgServicesPreview').classList.add('d-none');
-            document.getElementById('orderPickerPkgServicesPills').innerHTML = '';
+            if (previewBox) previewBox.classList.add('d-none');
+            if (pillsSpan) pillsSpan.innerHTML = '';
+            if (descText) descText.innerText = '';
+            if (svcRow) svcRow.classList.add('d-none');
+            if (descRow) descRow.classList.add('d-none');
             currentSelectedOrderPkgDetails = null;
             return;
         }
@@ -759,22 +787,35 @@
                     document.getElementById('orderPkgPriceInput').value = parseFloat(data.sell_price).toFixed(2);
                 }
 
-                const previewBox = document.getElementById('orderPickerPkgServicesPreview');
-                const pillsBox = document.getElementById('orderPickerPkgServicesPills');
-                pillsBox.innerHTML = '';
+                let hasServices = false;
+                let hasDesc = false;
 
-                if (data.services && data.services.length > 0) {
-                    previewBox.classList.remove('d-none');
-                    data.services.forEach(svc => {
-                        const pill = document.createElement('span');
-                        pill.className = 'package-service-pill';
-                        pill.style.fontSize = '11px';
-                        pill.style.padding = '2px 7px';
-                        pill.innerHTML = `<i class="bi bi-check2-circle text-success"></i> ${svc.service_name} &bull; Qty: <strong>${svc.qty}</strong>`;
-                        pillsBox.appendChild(pill);
-                    });
+                if (pillsSpan && Array.isArray(data.services) && data.services.length > 0) {
+                    hasServices = true;
+                    pillsSpan.innerHTML = data.services.map(svc => 
+                        `<span class="package-service-pill"><i class="bi bi-check2-circle text-success"></i> ${escapeHtml(svc.service_name || '')} &bull; Qty: <strong>${svc.qty || 1}</strong></span>`
+                    ).join(' ');
+                    if (svcRow) svcRow.classList.remove('d-none');
                 } else {
-                    previewBox.classList.add('d-none');
+                    if (pillsSpan) pillsSpan.innerHTML = '';
+                    if (svcRow) svcRow.classList.add('d-none');
+                }
+
+                if (descText && data.description && data.description.trim() !== '') {
+                    hasDesc = true;
+                    descText.innerText = data.description;
+                    if (descRow) descRow.classList.remove('d-none');
+                } else {
+                    if (descText) descText.innerText = '';
+                    if (descRow) descRow.classList.add('d-none');
+                }
+
+                if (previewBox) {
+                    if (hasServices || hasDesc) {
+                        previewBox.classList.remove('d-none');
+                    } else {
+                        previewBox.classList.add('d-none');
+                    }
                 }
             })
             .catch(() => {
@@ -801,21 +842,48 @@
         const sellPrice = parseFloat(priceInput.value) || 0;
         const qty = parseInt(qtyInput.value) || 1;
         const costPrice = currentSelectedOrderPkgDetails?.cost_price ? parseFloat(currentSelectedOrderPkgDetails.cost_price) : 0;
-        const services = currentSelectedOrderPkgDetails?.services || [];
+        const description = currentSelectedOrderPkgDetails?.description || '';
 
         addOrderPackageRow({
             event_package_id: null,
             event_sub_category_id: subCategoryId,
             category_name: categoryName,
             package_name: packageName,
+            description: description,
             cost_price: costPrice,
             sell_price: sellPrice,
             qty: qty,
-            total_price: sellPrice * qty,
-            services: services
+            total_price: sellPrice * qty
         });
 
+        // Reset package picker form completely
+        catSelect.value = '';
+        catSelect.selectedIndex = 0;
+        if (typeof jQuery !== 'undefined' && jQuery(catSelect).hasClass('select2-hidden-accessible')) {
+            jQuery(catSelect).val('').trigger('change.select2');
+        }
+
+        subSelect.innerHTML = '<option value="">-- Select Category First --</option>';
+        subSelect.value = '';
+        subSelect.selectedIndex = 0;
+        if (typeof jQuery !== 'undefined' && jQuery(subSelect).hasClass('select2-hidden-accessible')) {
+            jQuery(subSelect).val('').trigger('change.select2');
+        }
+
+        priceInput.value = '0.00';
         qtyInput.value = '1';
+        currentSelectedOrderPkgDetails = null;
+
+        const previewBox = document.getElementById('orderPickerPkgServicesPreview');
+        if (previewBox) previewBox.classList.add('d-none');
+        const pillsSpan = document.getElementById('orderPickerPkgServicesPills');
+        if (pillsSpan) pillsSpan.innerHTML = '';
+        const descText = document.getElementById('orderPickerPkgDescText');
+        if (descText) descText.innerText = '';
+        const svcRow = document.getElementById('orderPickerPkgServicesRow');
+        if (svcRow) svcRow.classList.add('d-none');
+        const descRow = document.getElementById('orderPickerPkgDescRow');
+        if (descRow) descRow.classList.add('d-none');
     }
 
     // Render Order Package Row in Table
@@ -828,17 +896,12 @@
         const sellPrice = parseFloat(pkg.sell_price || 0);
         const qty = parseInt(pkg.qty || 1);
         const totalPrice = parseFloat(pkg.total_price || (sellPrice * qty));
-        const services = pkg.services || [];
+        const pkgDesc = pkg.description || '';
         const eventPkgId = pkg.event_package_id || '';
 
-        let servicesHtml = '';
-        if (services.length > 0) {
-            servicesHtml = '<div class="d-flex flex-wrap gap-1 mt-1.5">';
-            services.forEach(s => {
-                const sName = s.name || s.service_name || 'Service';
-                servicesHtml += `<span class="package-service-pill" style="font-size: 11px; padding: 2px 7px;"><i class="bi bi-check2-circle text-success"></i> ${escapeHtml(sName)} &bull; Qty: <strong>${s.qty}</strong></span>`;
-            });
-            servicesHtml += '</div>';
+        let descHtml = '';
+        if (pkgDesc && pkgDesc.trim() !== '') {
+            descHtml = `<div class="text-muted small mt-1" style="white-space: pre-line; font-size: 11.5px; line-height: 1.45;"><i class="bi bi-text-paragraph text-primary me-1"></i>${escapeHtml(pkgDesc)}</div>`;
         }
 
         const tr = document.createElement('tr');
@@ -851,10 +914,11 @@
                     ${pkg.category_name ? `<span class="badge bg-secondary-subtle text-secondary border small">${escapeHtml(pkg.category_name)}</span>` : ''}
                     ${eventPkgId ? `<span class="badge bg-primary-subtle text-primary border small" title="Synchronized from Event profile"><i class="bi bi-link-45deg"></i> From Event</span>` : `<span class="badge bg-success-subtle text-success border small" title="Custom package added in this order"><i class="bi bi-plus-circle"></i> Added In Order</span>`}
                 </div>
-                ${servicesHtml}
+                ${descHtml}
                 <input type="hidden" name="packages[${idx}][event_package_id]" class="opkg-event-pkg-id" value="${eventPkgId}">
                 <input type="hidden" name="packages[${idx}][event_sub_category_id]" value="${pkg.event_sub_category_id || ''}">
                 <input type="hidden" name="packages[${idx}][package_name]" value="${escapeHtml(pkg.package_name)}">
+                <input type="hidden" name="packages[${idx}][description]" value="${escapeHtml(pkgDesc)}">
                 <input type="hidden" name="packages[${idx}][cost_price]" value="${pkg.cost_price || 0}">
             </td>
             <td>

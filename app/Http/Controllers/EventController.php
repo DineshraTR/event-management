@@ -183,6 +183,7 @@ class EventController extends Controller
                             'event_id' => $event->id,
                             'event_sub_category_id' => !empty($p['event_sub_category_id']) ? $p['event_sub_category_id'] : null,
                             'package_name' => $p['package_name'] ?? 'Event Package',
+                            'description' => $p['description'] ?? null,
                             'cost_price' => (float)($p['cost_price'] ?? 0),
                             'sell_price' => $sell,
                             'qty' => $qty,
@@ -195,6 +196,7 @@ class EventController extends Controller
                     'event_id' => $event->id,
                     'event_sub_category_id' => $event->event_sub_category_id,
                     'package_name' => $event->package_name ?? $event->subCategory?->name ?? 'Base Package',
+                    'description' => $event->subCategory?->description ?? null,
                     'cost_price' => $event->package_cost_price ?? 0,
                     'sell_price' => $event->package_sell_price ?? 0,
                     'qty' => 1,
@@ -367,6 +369,7 @@ class EventController extends Controller
                             'event_id' => $event->id,
                             'event_sub_category_id' => !empty($p['event_sub_category_id']) ? $p['event_sub_category_id'] : null,
                             'package_name' => $p['package_name'] ?? 'Event Package',
+                            'description' => $p['description'] ?? null,
                             'cost_price' => (float)($p['cost_price'] ?? 0),
                             'sell_price' => $sell,
                             'qty' => $qty,
@@ -379,6 +382,7 @@ class EventController extends Controller
                     'event_id' => $event->id,
                     'event_sub_category_id' => $event->event_sub_category_id,
                     'package_name' => $event->package_name ?? $event->subCategory?->name ?? 'Base Package',
+                    'description' => $event->subCategory?->description ?? null,
                     'cost_price' => $event->package_cost_price ?? 0,
                     'sell_price' => $event->package_sell_price ?? 0,
                     'qty' => 1,
@@ -423,6 +427,9 @@ class EventController extends Controller
             $orders = $event->orders;
             if ($orders && $orders->isNotEmpty()) {
                 $freshPackages = $event->packages()->get();
+                $freshEventServices = $event->additionalServices()->get();
+                $freshCharges = $event->otherCharges()->get();
+
                 foreach ($orders as $order) {
                     // 1. Sync order_packages
                     $order->packages()->delete();
@@ -432,6 +439,7 @@ class EventController extends Controller
                             'event_package_id' => $epkg->id,
                             'event_sub_category_id' => $epkg->event_sub_category_id,
                             'package_name' => $epkg->package_name,
+                            'description' => $epkg->description ?? $epkg->subCategory?->description,
                             'cost_price' => $epkg->cost_price,
                             'sell_price' => $epkg->sell_price,
                             'qty' => $epkg->qty,
@@ -453,7 +461,31 @@ class EventController extends Controller
                         ]);
                     }
 
-                    // 3. Update order package info and recalculate
+                    // 3. Sync additional services (non-package line items) in OrderService
+                    $order->services()->where('is_package_item', false)->delete();
+                    foreach ($freshEventServices as $esvc) {
+                        OrderService::create([
+                            'order_id' => $order->id,
+                            'service_id' => $esvc->service_id,
+                            'is_package_item' => false,
+                            'description' => $esvc->description,
+                            'qty' => $esvc->qty,
+                            'unit_price' => $esvc->unit_price,
+                            'total_price' => $esvc->total_price,
+                        ]);
+                    }
+
+                    // 4. Sync other charges in OrderOtherCharge
+                    $order->otherCharges()->delete();
+                    foreach ($freshCharges as $echarge) {
+                        OrderOtherCharge::create([
+                            'order_id' => $order->id,
+                            'description' => $echarge->description,
+                            'amount' => $echarge->amount,
+                        ]);
+                    }
+
+                    // 5. Update order package info and recalculate
                     $order->update([
                         'event_sub_category_id' => $event->event_sub_category_id,
                         'package_name' => $event->package_name,
@@ -579,6 +611,7 @@ class EventController extends Controller
                     'event_package_id' => $epkg->id,
                     'event_sub_category_id' => $epkg->event_sub_category_id,
                     'package_name' => $epkg->package_name,
+                    'description' => $epkg->description ?? $epkg->subCategory?->description,
                     'cost_price' => $epkg->cost_price,
                     'sell_price' => $epkg->sell_price,
                     'qty' => $epkg->qty,
@@ -601,6 +634,7 @@ class EventController extends Controller
                 'event_package_id' => null,
                 'event_sub_category_id' => $event->event_sub_category_id,
                 'package_name' => $packageName,
+                'description' => $event->subCategory?->description,
                 'cost_price' => $event->package_cost_price ?? 0,
                 'sell_price' => $event->package_sell_price ?? 0,
                 'qty' => 1,

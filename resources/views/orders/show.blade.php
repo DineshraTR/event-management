@@ -120,175 +120,230 @@
 <div class="row g-4">
     <!-- Left Column: Linked Event, Services & Items, Other Charges, Payments -->
     <div class="col-12 col-lg-8">
-        <!-- 1. Linked Event Information Card (if applicable) -->
-        @if($order->event)
-            <div class="section-card">
-                <div class="section-card-header">
-                    <h6 class="section-card-title">
-                        <i class="bi bi-calendar-event text-primary"></i> Linked Event Information
-                    </h6>
-                    <a href="{{ route('events.show', $order->event) }}" class="btn btn-sm btn-outline-primary" target="_blank">
-                        <i class="bi bi-box-arrow-up-right me-1"></i> View Event Details
-                    </a>
-                </div>
-                <div class="card-body p-4">
-                    <div class="row g-3">
-                        <div class="col-sm-6">
-                            <small class="text-muted d-block" style="font-size: 11.5px;">EVENT TITLE</small>
-                            <div class="fw-semibold text-dark fs-6 mt-1">{{ $order->event->event_name }}</div>
-                            <span class="badge bg-light text-dark border font-monospace mt-1" style="font-size: 11px;">
-                                {{ $order->event->event_no }}
-                            </span>
-                        </div>
-                        <div class="col-sm-6">
-                            <small class="text-muted d-block" style="font-size: 11.5px;">EVENT DATE & DAY</small>
-                            <div class="fw-semibold text-dark mt-1">
-                                <i class="bi bi-calendar3 text-primary me-1"></i>
-                                {{ $order->event->event_date?->format('l, F j, Y') ?? 'N/A' }}
-                            </div>
-                            <small class="text-muted" style="font-size: 11px;">{{ $order->event->event_date?->diffForHumans() }}</small>
-                        </div>
-                        @php
-                            $orderDisplayPkgs = $order->packages && $order->packages->isNotEmpty()
-                                ? $order->packages
-                                : ($order->event?->packages && $order->event->packages->isNotEmpty()
-                                    ? $order->event->packages
-                                    : collect());
-                        @endphp
-                        <div class="col-sm-6">
-                            <small class="text-muted d-block" style="font-size: 11.5px;">BOOKED PACKAGE{{ $orderDisplayPkgs->count() > 1 ? 'S' : '' }}</small>
-                            <div class="fw-semibold text-dark mt-1">
-                                <i class="bi bi-box-seam text-secondary me-1"></i>
-                                @if($orderDisplayPkgs->isNotEmpty())
-                                    {{ $orderDisplayPkgs->pluck('package_name')->join(', ') }}
-                                @else
-                                    {{ $order->event->subCategory?->name ?? 'Custom Package' }}
-                                    @if($order->event->subCategory?->category)
-                                        <span class="badge bg-light text-secondary border ms-1" style="font-size: 11px;">{{ $order->event->subCategory->category->name }}</span>
-                                    @endif
-                                @endif
-                            </div>
-                            @if($order->event->package_sell_price > 0)
-                                <small class="text-primary fw-bold" style="font-size: 11.5px;">Base Price: Rs. {{ number_format($order->event->package_sell_price, 2) }}</small>
-                            @endif
-                        </div>
-                        <div class="col-sm-6">
-                            <small class="text-muted d-block" style="font-size: 11.5px;">VENUE / LOCATION</small>
-                            <div class="fw-semibold text-dark mt-1">
-                                @if($order->event->venue)
-                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i> {{ $order->event->venue }}
-                                @else
-                                    <span class="text-muted">Not specified</span>
-                                @endif
-                            </div>
-                        </div>
-
-                        <!-- Included Services in Selected Package -->
-                        @php
-                            $orderDeliverables = collect();
-                            if ($orderDisplayPkgs->isNotEmpty()) {
-                                foreach ($orderDisplayPkgs as $dp) {
-                                    $delivs = $dp->deliverables ?? ($dp->subCategory?->subCategoryServices->map(fn($s) => ['service_name' => $s->service?->name ?? 'Service', 'qty' => $s->qty])->toArray() ?? []);
-                                    if (!empty($delivs)) {
-                                        foreach ($delivs as $d) {
-                                            $orderDeliverables->push([
-                                                'package_name' => $dp->package_name,
-                                                'name' => $d['service_name'] ?? $d['name'] ?? 'Item',
-                                                'qty' => $d['qty'] ?? 1
-                                            ]);
-                                        }
-                                    }
-                                }
-                            } elseif ($order->event?->subCategory?->subCategoryServices && $order->event->subCategory->subCategoryServices->isNotEmpty()) {
-                                foreach ($order->event->subCategory->subCategoryServices as $ps) {
-                                    $orderDeliverables->push([
-                                        'package_name' => $order->event->subCategory->name,
-                                        'name' => $ps->service?->name ?? 'Service',
-                                        'qty' => $ps->qty
-                                    ]);
-                                }
-                            }
-                        @endphp
-                        @if($orderDeliverables->isNotEmpty())
-                            <div class="col-12 mt-3 pt-3 border-top">
-                                <div class="d-flex align-items-center justify-content-between mb-2">
-                                    <small class="fw-bold text-dark text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
-                                        <i class="bi bi-check-circle-fill text-success me-1"></i> Included in Selected Package(s):
-                                    </small>
-                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 10.5px;">
-                                        {{ $orderDeliverables->count() }} Services
-                                    </span>
-                                </div>
-                                <div class="d-flex flex-wrap gap-2">
-                                    @foreach($orderDeliverables as $deliv)
-                                        <span class="badge bg-light text-dark border px-2.5 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5" style="font-size: 11.5px;">
-                                            <i class="bi bi-check2-circle text-success"></i>
-                                            <span>{{ $deliv['name'] }} &bull; Qty: <strong>{{ $deliv['qty'] }}</strong></span>
-                                            @if($orderDisplayPkgs->count() > 1)
-                                                <small class="text-muted fw-normal">({{ $deliv['package_name'] }})</small>
-                                            @endif
-                                        </span>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        @endif
-
-        <!-- 2. Order Services & Items Card -->
+        <!-- 1. Event & Venue Information -->
         <div class="section-card">
             <div class="section-card-header">
                 <h6 class="section-card-title">
-                    <i class="bi bi-box-seam text-primary"></i> Order Items & Quoted Services
+                    <i class="bi bi-info-circle text-primary"></i> Event & Venue Information
+                </h6>
+                @if($order->event)
+                    <a href="{{ route('events.show', $order->event) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> View Event Details
+                    </a>
+                @endif
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <small class="text-muted d-block" style="font-size: 11.5px;">EVENT NAME / OCCASION</small>
+                        <div class="fw-semibold text-dark fs-6 mt-1">{{ $order->event?->event_name ?? ($order->customer?->name . ' - Order #' . $order->order_no) }}</div>
+                        @if($order->event?->event_no)
+                            <span class="badge bg-light text-dark border font-monospace mt-1" style="font-size: 11px;">
+                                {{ $order->event->event_no }}
+                            </span>
+                        @endif
+                    </div>
+                    <div class="col-sm-6">
+                        <small class="text-muted d-block" style="font-size: 11.5px;">EVENT DATE & DAY</small>
+                        <div class="fw-semibold text-dark fs-6 mt-1">
+                            <i class="bi bi-calendar3 me-1 text-primary"></i>
+                            {{ $order->event?->event_date?->format('l, F j, Y') ?? 'Not specified' }}
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <small class="text-muted d-block" style="font-size: 11.5px;">VENUE / RECEPTION LOCATION</small>
+                        <div class="fw-semibold text-dark mt-1">
+                            @if($order->event?->venue)
+                                <i class="bi bi-geo-alt-fill text-danger me-1"></i> {{ $order->event->venue }}
+                            @else
+                                <span class="text-muted">Not specified</span>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <small class="text-muted d-block" style="font-size: 11.5px;">REGISTRATION DATE</small>
+                        <div class="text-dark mt-1">
+                            <i class="bi bi-clock-history me-1 text-secondary"></i>
+                            {{ $order->event?->today_date?->format('M d, Y') ?? ($order->event?->created_at?->format('M d, Y') ?? $order->created_at->format('M d, Y')) }}
+                        </div>
+                    </div>
+                    @if($order->event?->remarks)
+                        <div class="col-12 mt-2 pt-3 border-top">
+                            <small class="text-muted d-block mb-1" style="font-size: 11.5px;">SPECIAL CLIENT REMARKS & ARRANGEMENTS NOTES</small>
+                            <div class="p-3 bg-light rounded-3 text-secondary" style="font-size: 13px; line-height: 1.6;">
+                                {{ $order->event->remarks }}
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Booked Packages & Included Services (Multi-Package Supported) -->
+        @php
+            $displayPackages = $order->packages && $order->packages->isNotEmpty()
+                ? $order->packages
+                : ($order->event?->packages && $order->event->packages->isNotEmpty()
+                    ? $order->event->packages
+                    : collect());
+
+            $totalPackagesPrice = (float) (
+                $order->package_sell_price > 0
+                    ? $order->package_sell_price
+                    : ($displayPackages->isNotEmpty()
+                        ? $displayPackages->sum(function($p) use ($order) {
+                            $uPrice = (float)($p->sell_price > 0 ? $p->sell_price : ($p->unit_price > 0 ? $p->unit_price : ($p->qty > 0 && $p->total_price > 0 ? $p->total_price / $p->qty : ($p->subCategory?->sell_price ?? ($order->event?->package_sell_price ?? 0)))));
+                            return (float)($p->total_price > 0 ? $p->total_price : ($uPrice * ($p->qty ?: 1)));
+                        })
+                        : ($order->event?->package_sell_price ?? 0))
+            );
+        @endphp
+        <div class="section-card">
+            <div class="section-card-header">
+                <h6 class="section-card-title">
+                    <i class="bi bi-box-seam text-primary"></i> Booked Packages & Included Services
                 </h6>
                 <span class="badge bg-light text-dark border">
-                    {{ $order->services->count() }} Line Items
+                    Total Packages: Rs. {{ number_format($totalPackagesPrice, 2) }}
+                </span>
+            </div>
+            <div class="card-body p-4">
+                @if($displayPackages->isNotEmpty())
+                    <div class="table-responsive mb-0">
+                        <table class="table modern-table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Package Name</th>
+                                    <th>Category</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Unit Price</th>
+                                    <th class="text-end">Total Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($displayPackages as $pkg)
+                                    @php
+                                        $pkgUnitPrice = (float) (
+                                            $pkg->sell_price > 0 
+                                                ? $pkg->sell_price 
+                                                : ($pkg->unit_price > 0 
+                                                    ? $pkg->unit_price 
+                                                    : ($pkg->qty > 0 && $pkg->total_price > 0 
+                                                        ? $pkg->total_price / $pkg->qty 
+                                                        : ($pkg->subCategory?->sell_price 
+                                                            ?: ($totalPackagesPrice 
+                                                                ?: ($order->event?->subCategory?->sell_price ?? 0))))));
+                                        $pkgTotalPrice = (float) ($pkg->total_price > 0 ? $pkg->total_price : ($pkgUnitPrice * ($pkg->qty ?: 1)));
+                                        $pkgDesc = $pkg->description ?? $pkg->subCategory?->description ?? '';
+                                    @endphp
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold text-dark">{{ $pkg->package_name }}</div>
+                                            @if(!empty($pkgDesc))
+                                                <div class="text-muted small mt-1" style="white-space: pre-line; font-size: 11.5px; line-height: 1.45;">
+                                                    <i class="bi bi-text-paragraph text-primary me-1"></i>{{ $pkgDesc }}
+                                                </div>
+                                            @endif
+                                        </td>
+                                        <td class="text-secondary small">{{ $pkg->category_name ?? $pkg->subCategory?->category?->name ?? 'Package' }}</td>
+                                        <td class="text-center font-num fw-semibold">{{ $pkg->qty ?: 1 }}</td>
+                                        <td class="text-end font-num">Rs. {{ number_format($pkgUnitPrice, 2) }}</td>
+                                        <td class="text-end font-num fw-bold text-dark">Rs. {{ number_format($pkgTotalPrice, 2) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    @php
+                        $singleSubCat = $order->event?->subCategory;
+                        $baseDesc = $singleSubCat?->description;
+                    @endphp
+                    <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-bold text-dark mb-0">{{ $singleSubCat?->name ?? 'Standard Package' }}</h6>
+                            <small class="text-muted">Category: {{ $singleSubCat?->category?->name ?? 'General Category' }}</small>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted d-block" style="font-size: 11px;">PACKAGE BASE PRICE</small>
+                            <span class="fw-bold text-primary fs-6">Rs. {{ number_format($totalPackagesPrice, 2) }}</span>
+                        </div>
+                    </div>
+
+                    @if(!empty($baseDesc))
+                        <div class="mt-2">
+                            <small class="text-muted d-block mb-1 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
+                                Package Description:
+                            </small>
+                            <div class="text-secondary small p-3 bg-light rounded-3" style="white-space: pre-line; line-height: 1.5;">{{ $baseDesc }}</div>
+                        </div>
+                    @endif
+                @endif
+            </div>
+        </div>
+
+        <!-- 3. Additional Services Table -->
+        @php
+            $additionalServices = $order->services->filter(function($s) {
+                return !$s->is_package_item 
+                    && !str_contains($s->description, '(Package)') 
+                    && !str_contains($s->description, '(Base Package)');
+            });
+
+            if ($additionalServices->isEmpty() && $order->event && $order->event->additionalServices->isNotEmpty()) {
+                $additionalServices = $order->event->additionalServices;
+            }
+
+            $additionalServicesTotal = $additionalServices->sum('total_price');
+        @endphp
+        <div class="section-card">
+            <div class="section-card-header">
+                <h6 class="section-card-title">
+                    <i class="bi bi-stars text-primary"></i> Additional Services (Add-ons & Upgrades)
+                </h6>
+                <span class="badge bg-light text-dark border">
+                    {{ $additionalServices->count() }} Extra Items
                 </span>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light text-muted text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
                         <tr>
-                            <th class="ps-4 py-3">Item / Service Description</th>
+                            <th class="ps-4 py-3">Service Description</th>
                             <th class="py-3 text-center" style="width: 100px;">Qty</th>
                             <th class="py-3 text-end" style="width: 160px;">Unit Price</th>
-                            <th class="py-3 text-end pe-4" style="width: 170px;">Total Price</th>
+                            <th class="py-3 text-end pe-4" style="width: 170px;">Line Total</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($order->services as $line)
+                        @forelse($additionalServices as $svc)
                             <tr>
                                 <td class="ps-4 fw-medium text-dark">
-                                    {{ $line->description }}
-                                    @if($line->service)
+                                    {{ $svc->description }}
+                                    @if($svc->service)
                                         <small class="text-muted d-block" style="font-size: 11px;">
-                                            Service: {{ $line->service->name }}
+                                            Preset: {{ $svc->service->name }}
                                         </small>
                                     @endif
                                 </td>
-                                <td class="text-center">{{ $line->qty }}</td>
-                                <td class="text-end">Rs. {{ number_format($line->unit_price, 2) }}</td>
-                                <td class="text-end pe-4 fw-bold text-dark">Rs. {{ number_format($line->total_price, 2) }}</td>
+                                <td class="text-center">{{ $svc->qty }}</td>
+                                <td class="text-end">Rs. {{ number_format($svc->unit_price, 2) }}</td>
+                                <td class="text-end pe-4 fw-bold text-dark">Rs. {{ number_format($svc->total_price, 2) }}</td>
                             </tr>
                         @empty
                             <tr>
                                 <td colspan="4" class="text-center text-muted py-4 small">
-                                    <i class="bi bi-info-circle me-1"></i> No service lines recorded on this order.
+                                    <i class="bi bi-info-circle me-1"></i> No additional upgrade services added to this order.
                                 </td>
                             </tr>
                         @endforelse
                     </tbody>
-                    @if($order->services->isNotEmpty())
-                        @php
-                            $servicesSum = $order->services->sum('total_price');
-                        @endphp
+                    @if($additionalServices->isNotEmpty())
                         <tfoot class="bg-light">
                             <tr>
-                                <td colspan="3" class="text-end fw-bold text-secondary">Items Subtotal:</td>
+                                <td colspan="3" class="text-end fw-bold text-secondary">Extra Services Total:</td>
                                 <td class="text-end pe-4 fw-bold text-dark">
-                                    Rs. {{ number_format($servicesSum, 2) }}
+                                    Rs. {{ number_format($additionalServicesTotal, 2) }}
                                 </td>
                             </tr>
                         </tfoot>
@@ -297,47 +352,61 @@
             </div>
         </div>
 
-        <!-- 3. Other Charges Card (if applicable) -->
-        @if($order->otherCharges && $order->otherCharges->isNotEmpty())
-            <div class="section-card">
-                <div class="section-card-header">
-                    <h6 class="section-card-title">
-                        <i class="bi bi-truck text-primary"></i> Other Charges (Transport, Surcharges)
-                    </h6>
-                    <span class="badge bg-light text-dark border">
-                        {{ $order->otherCharges->count() }} Charges
-                    </span>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light text-muted text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
+        <!-- 4. Other Charges Table (Transport, Hall Rental, Logistics) -->
+        @php
+            $displayCharges = $order->otherCharges && $order->otherCharges->isNotEmpty()
+                ? $order->otherCharges
+                : ($order->event?->otherCharges && $order->event->otherCharges->isNotEmpty()
+                    ? $order->event->otherCharges
+                    : collect());
+            $otherChargesTotal = $displayCharges->sum('amount');
+        @endphp
+        <div class="section-card">
+            <div class="section-card-header">
+                <h6 class="section-card-title">
+                    <i class="bi bi-truck text-primary"></i> Other Charges (Transport, Hall Rental, Logistics)
+                </h6>
+                <span class="badge bg-light text-dark border">
+                    {{ $displayCharges->count() }} Charges
+                </span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light text-muted text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">
+                        <tr>
+                            <th class="ps-4 py-3">Charge Description</th>
+                            <th class="py-3 text-end pe-4" style="width: 200px;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($displayCharges as $charge)
                             <tr>
-                                <th class="ps-4 py-3">Charge Description</th>
-                                <th class="py-3 text-end pe-4" style="width: 200px;">Amount</th>
+                                <td class="ps-4 fw-medium text-dark">{{ $charge->description }}</td>
+                                <td class="text-end pe-4 fw-bold text-dark">Rs. {{ number_format($charge->amount, 2) }}</td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($order->otherCharges as $charge)
-                                <tr>
-                                    <td class="ps-4 fw-medium text-dark">{{ $charge->description }}</td>
-                                    <td class="text-end pe-4 fw-bold text-dark">Rs. {{ number_format($charge->amount, 2) }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
+                        @empty
+                            <tr>
+                                <td colspan="2" class="text-center text-muted py-4 small">
+                                    <i class="bi bi-info-circle me-1"></i> No other charges or logistics fees recorded.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                    @if($displayCharges->isNotEmpty())
                         <tfoot class="bg-light">
                             <tr>
-                                <td class="text-end fw-bold text-secondary">Charges Subtotal:</td>
+                                <td class="text-end fw-bold text-secondary">Other Charges Total:</td>
                                 <td class="text-end pe-4 fw-bold text-dark">
-                                    Rs. {{ number_format($order->otherCharges->sum('amount'), 2) }}
+                                    Rs. {{ number_format($otherChargesTotal, 2) }}
                                 </td>
                             </tr>
                         </tfoot>
-                    </table>
-                </div>
+                    @endif
+                </table>
             </div>
-        @endif
+        </div>
 
-        <!-- 4. Payment History & Transaction Receipts -->
+        <!-- 5. Payment History & Transaction Receipts -->
         <div class="section-card">
             <div class="section-card-header">
                 <h6 class="section-card-title">
@@ -419,7 +488,7 @@
             </div>
         </div>
 
-        <!-- 5. Order Notes / Special Remarks (if any) -->
+        <!-- 6. Order Notes / Special Remarks (if any) -->
         @if($order->notes)
             <div class="section-card">
                 <div class="section-card-header">

@@ -355,39 +355,15 @@
             $finalSubTotal = (float)($quotation->sub_total > 0 ? $quotation->sub_total : $calcSubTotal);
             $discountVal = (float)($quotation->discount ?? 0);
             $finalTotalAmount = (float)($quotation->total_amount > 0 ? $quotation->total_amount : max(0, $finalSubTotal - $discountVal));
-
-            $allDeliverables = collect();
-            if ($displayPackages->isNotEmpty()) {
-                foreach ($displayPackages as $dp) {
-                    $delivs = $dp->deliverables ?? ($dp->subCategory?->subCategoryServices->map(fn($s) => ['service_name' => $s->service?->name ?? 'Service', 'qty' => $s->qty])->toArray() ?? []);
-                    if (!empty($delivs)) {
-                        foreach ($delivs as $d) {
-                            $allDeliverables->push([
-                                'package_name' => $dp->package_name,
-                                'name' => $d['service_name'] ?? $d['name'] ?? 'Item',
-                                'qty' => $d['qty'] ?? 1
-                            ]);
-                        }
-                    }
-                }
-            } elseif ($includedServices->isNotEmpty()) {
-                foreach ($includedServices as $ps) {
-                    $allDeliverables->push([
-                        'package_name' => $quotation->package_name ?? $quotation->subCategory?->name ?? 'Package',
-                        'name' => $ps->service?->name ?? 'Service #' . $ps->service_id,
-                        'qty' => $ps->qty
-                    ]);
-                }
-            }
         @endphp
 
-        <!-- 4. Line Items Table (Deliverables & Charges) -->
+        <!-- 4. Line Items Table (Packages & Charges) -->
         <div class="table-responsive mb-4">
             <table class="table table-quotation mb-0">
                 <thead>
                     <tr>
                         <th style="width: 40px;" class="text-center">#</th>
-                        <th>Item / Deliverable Description</th>
+                        <th>Item / Package Description</th>
                         <th style="width: 90px;" class="text-center">Qty</th>
                         <th style="width: 150px;" class="text-end">Unit Price (Rs.)</th>
                         <th style="width: 160px;" class="text-end pe-3">Line Total (Rs.)</th>
@@ -396,7 +372,7 @@
                 <tbody>
                     @php $itemCount = 1; @endphp
 
-                    <!-- 1. Packages Line Items -->
+                    <!-- 1. Packages Line Items (product with description directly underneath) -->
                     @if($displayPackages->isNotEmpty())
                         @foreach($displayPackages as $pkg)
                             @php
@@ -411,44 +387,20 @@
                                                     ?: ($quotation->package_sell_price 
                                                         ?: ($quotation->subCategory?->sell_price ?? 0))))));
                                 $pkgTot = (float)($pkg->total_price > 0 ? $pkg->total_price : ($pkgUnit * ($pkg->qty ?: 1)));
-                            @endphp
-                            @php
-                                $pkgDelivs = $pkg->deliverables;
-                                if (empty($pkgDelivs) && $pkg->subCategory && $pkg->subCategory->subCategoryServices) {
-                                    $pkgDelivs = $pkg->subCategory->subCategoryServices->map(fn($s) => [
-                                        'service_name' => $s->service?->name ?? 'Item',
-                                        'qty' => $s->qty
-                                    ])->toArray();
-                                }
-                                if (empty($pkgDelivs) && $quotation->subCategory && $quotation->subCategory->subCategoryServices) {
-                                    $pkgDelivs = $quotation->subCategory->subCategoryServices->map(fn($s) => [
-                                        'service_name' => $s->service?->name ?? 'Item',
-                                        'qty' => $s->qty
-                                    ])->toArray();
-                                }
+                                $pkgDesc = $pkg->description ?? $pkg->subCategory?->description ?? '';
                             @endphp
                             <tr style="background-color: #fafbfc;">
                                 <td class="text-center text-muted font-monospace">{{ $itemCount++ }}</td>
                                 <td class="fw-bold text-dark">
                                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                        <!-- <i class="bi bi-box-seam text-primary me-1"></i> -->
                                         <span>{{ $pkg->package_name }}</span>
                                         @if($pkg->category_name ?? $pkg->subCategory?->category?->name)
                                             <small class="text-muted fw-normal">({{ $pkg->category_name ?? $pkg->subCategory?->category?->name }})</small>
                                         @endif
                                     </div>
-                                    @if(!empty($pkgDelivs) && is_array($pkgDelivs) && count($pkgDelivs) > 0)
-                                        <div class="mt-1.5 pt-1.5 border-top border-light-subtle">
-                                            <!-- <small class="text-muted d-block fw-bold mb-1 text-uppercase" style="font-size: 10px; letter-spacing: 0.3px;">
-                                                <i class="bi bi-check2-circle text-success me-0.5"></i> Included Deliverables:
-                                            </small> -->
-                                            <div class="d-flex flex-wrap gap-1">
-                                                @foreach($pkgDelivs as $deliv)
-                                                    <span class="badge bg-white text-dark border fw-normal" style="font-size: 10.5px; padding: 3px 6px;">
-                                                        <i class="bi bi-check2 text-success"></i> {{ $deliv['service_name'] ?? $deliv['name'] ?? 'Item' }} <span class="text-muted">&bull; Qty: <strong>{{ $deliv['qty'] ?? 1 }}</strong></span>
-                                                    </span>
-                                                @endforeach
-                                            </div>
+                                    @if(!empty($pkgDesc))
+                                        <div class="text-muted small fw-normal" style="font-size: 11.5px; line-height: 1.45;">
+                                            {!! nl2br(e($pkgDesc)) !!}
                                         </div>
                                     @endif
                                 </td>
@@ -459,33 +411,20 @@
                         @endforeach
                     @elseif($pkgBasePrice > 0)
                         @php
-                            $singleDelivs = $quotation->subCategory?->subCategoryServices->map(fn($s) => [
-                                'service_name' => $s->service?->name ?? 'Item',
-                                'qty' => $s->qty
-                            ])->toArray() ?? [];
+                            $singleDesc = $quotation->subCategory?->description ?? '';
                         @endphp
                         <tr style="background-color: #fafbfc;">
                             <td class="text-center text-muted font-monospace">{{ $itemCount++ }}</td>
                             <td class="fw-bold text-dark">
                                 <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                    <!-- <i class="bi bi-box-seam text-primary me-1"></i> -->
                                     <span>{{ $quotation->package_name ?? $quotation->subCategory?->name ?? 'Event Package' }}</span>
                                     @if($quotation->subCategory?->category)
                                         <small class="text-muted fw-normal">({{ $quotation->subCategory->category->name }})</small>
                                     @endif
                                 </div>
-                                @if(!empty($singleDelivs) && count($singleDelivs) > 0)
-                                    <div class="mt-1.5 pt-1.5 border-top border-light-subtle">
-                                        <!-- <small class="text-muted d-block fw-bold mb-1 text-uppercase" style="font-size: 10px; letter-spacing: 0.3px;">
-                                            <i class="bi bi-check2-circle text-success me-0.5"></i> Included Deliverables:
-                                        </small> -->
-                                        <div class="d-flex flex-wrap gap-1">
-                                            @foreach($singleDelivs as $deliv)
-                                                <span class="badge bg-white text-dark border fw-normal" style="font-size: 10.5px; padding: 3px 6px;">
-                                                    <i class="bi bi-check2 text-success"></i> {{ $deliv['service_name'] }} <span class="text-muted">&bull; Qty: <strong>{{ $deliv['qty'] }}</strong></span>
-                                                </span>
-                                            @endforeach
-                                        </div>
+                                @if(!empty($singleDesc))
+                                    <div class="text-muted small fw-normal" style="font-size: 11.5px; line-height: 1.45;">
+                                        {!! nl2br(e($singleDesc)) !!}
                                     </div>
                                 @endif
                             </td>
