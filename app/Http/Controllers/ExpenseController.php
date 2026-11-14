@@ -103,7 +103,7 @@ class ExpenseController extends Controller
             }
         }
 
-        DB::transaction(function () use ($validated) {
+        $expense = DB::transaction(function () use ($validated) {
             $expense = Expense::create($validated);
 
             if ($validated['payment_method'] === 'cheque') {
@@ -170,6 +170,8 @@ class ExpenseController extends Controller
                     ]);
                 }
             }
+
+            return $expense;
         });
 
         \App\Services\AuditLogger::log(
